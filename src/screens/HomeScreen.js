@@ -8,7 +8,7 @@ import Message from '../components/Message'
 import Paginate from '../components/Paginate'
 import { listProducts } from '../actions/productActions'
 import Navs2 from '../components/Navs2'
-import SearchCategory from '../components/SearchCategory'
+import ShopFilters from '../components/ShopFilters'
 import { Container } from '../components/ui'
 
 function HomeScreen({ history }) {
@@ -47,7 +47,7 @@ function HomeScreen({ history }) {
 
                 <div className="grid gap-8 lg:grid-cols-[12rem_1fr]">
                     <aside className="space-y-6 lg:sticky lg:top-32 lg:self-start">
-                        <SearchCategory />
+                        <ShopFilters />
                     </aside>
 
                     <div>
