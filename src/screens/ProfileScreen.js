@@ -54,7 +54,6 @@ function ProfileScreen({ history }) {
             dispatch(updateUserProfile({
                 'id': user._id,
                 'name': name,
-                'email': email,
                 'password': password
             }))
             setMessage('')
@@ -76,8 +75,8 @@ function ProfileScreen({ history }) {
                             <Field label="Name" id="name">
                                 <Input id="name" required type='text' placeholder='Enter name' value={name} onChange={(e) => setName(e.target.value)} />
                             </Field>
-                            <Field label="Email address" id="email">
-                                <Input id="email" required type='email' placeholder='Enter email' value={email} onChange={(e) => setEmail(e.target.value)} />
+                            <Field label="Email address" id="email" hint="Your email is your login and can't be changed.">
+                                <Input id="email" type='email' value={email} readOnly disabled className="cursor-not-allowed text-slate-500" />
                             </Field>
                             <Field label="New password" id="password">
                                 <Input id="password" type='password' placeholder='Leave blank to keep' value={password} onChange={(e) => setPassword(e.target.value)} />
