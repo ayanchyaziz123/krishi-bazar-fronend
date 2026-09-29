@@ -54,6 +54,8 @@ function ProfileScreen({ history }) {
             dispatch(updateUserProfile({
                 'id': user._id,
                 'name': name,
+                // Locked field; sent unchanged so older backends still accept the update.
+                'email': email,
                 'password': password
             }))
             setMessage('')
