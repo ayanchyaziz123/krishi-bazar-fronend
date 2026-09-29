@@ -1,0 +1,20 @@
+[build]
+  command = "npm run build"
+  publish = "build"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# The storefront calls /api and /images on its own domain.
+# Forward those requests to the Django backend on Railway.
+[[redirects]]
+  from = "/api/*"
+  to = "https://backend-production-57dd.up.railway.app/api/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/images/*"
+  to = "https://backend-production-57dd.up.railway.app/images/:splat"
+  status = 200
+  force = true
