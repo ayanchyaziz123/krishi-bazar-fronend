@@ -42,3 +42,10 @@
 input[type="range"].range {
   @apply h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-brand-600;
 }
+
+/* Printing a shop receipt prints only the receipt. */
+@media print {
+  body * { visibility: hidden; }
+  .print-area, .print-area * { visibility: visible; }
+  .print-area { position: absolute; left: 0; top: 0; width: 80mm; }
+}

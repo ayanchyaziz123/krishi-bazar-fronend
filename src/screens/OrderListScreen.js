@@ -60,7 +60,7 @@ function OrderListScreen({ history }) {
                                             : <Badge variant="amber">Pending</Badge>}
                                         </Td>
                                         <Td className="text-right">
-                                            <Button to={`/order/${order._id}`} variant="secondary" size="sm">Details <ChevronRight className="h-3.5 w-3.5" /></Button>
+                                            <Button to={`/admin/order/${order._id}`} variant="secondary" size="sm">Details <ChevronRight className="h-3.5 w-3.5" /></Button>
                                         </Td>
                                     </tr>
                                 ))}
