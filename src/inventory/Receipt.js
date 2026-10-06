@@ -18,7 +18,7 @@ function Receipt({ sale }) {
                 <div key={i} className="mb-1.5">
                     <p className="font-semibold">{item.name}</p>
                     <div className="flex justify-between text-slate-600">
-                        <span>{item.qty} {item.unit} x {formatTk(item.unit_price)}</span>
+                        <span>{Number(item.qty)} {item.unit} x {formatTk(item.unit_price)}</span>
                         <span>{formatTk(item.line_total)}</span>
                     </div>
                 </div>

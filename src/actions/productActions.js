@@ -65,11 +65,20 @@ export const listCoupons = () => async (dispatch) => {
     }
 }
 
-export const listProducts = (keyword = '') => async (dispatch) => {
+// Admins send their login so the server also returns products hidden from the website.
+const adminConfig = (getState) => {
+    const { userInfo } = getState().userLogin
+    return userInfo && userInfo.isAdmin ? { headers: { Authorization: `Bearer ${userInfo.token}` } } : {}
+}
+
+// `allProducts` lists products hidden from the website too. Only admins get them.
+export const listProducts = (keyword = '', allProducts = false) => async (dispatch, getState) => {
     try {
         dispatch({ type: PRODUCT_LIST_REQUEST })
 
-        const { data } = await axios.get(`/api/products${keyword}`)
+        let url = `/api/products${keyword}`
+        if (allProducts) url += `${keyword.includes('?') ? '&' : '?'}scope=all`
+        const { data } = await axios.get(url, allProducts ? adminConfig(getState) : {})
 
         dispatch({
             type: PRODUCT_LIST_SUCCESS,
@@ -129,11 +138,11 @@ export const listOfferProducts = () => async (dispatch) => {
 }
 
 
-export const listProductDetails = (id) => async (dispatch) => {
+export const listProductDetails = (id) => async (dispatch, getState) => {
     try {
         dispatch({ type: PRODUCT_DETAILS_REQUEST })
 
-        const { data } = await axios.get(`/api/products/${id}`)
+        const { data } = await axios.get(`/api/products/${id}`, adminConfig(getState))
 
         dispatch({
             type: PRODUCT_DETAILS_SUCCESS,
@@ -259,9 +268,10 @@ export const updateProduct = (product) => async (dispatch, getState) => {
         })
 
 
+        // The details reducer expects { product }, the shape the details endpoint returns.
         dispatch({
             type: PRODUCT_DETAILS_SUCCESS,
-            payload: data
+            payload: { product: data }
         })
 
 

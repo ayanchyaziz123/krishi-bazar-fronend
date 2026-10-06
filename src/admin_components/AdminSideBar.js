@@ -8,22 +8,37 @@ import {
 import { logout } from '../actions/userActions'
 import { cn } from '../components/ui'
 
-// The physical shop's back office.
-const shopLinks = [
-    { to: '/admin/counter', label: 'Counter sale', icon: Store },
-    { to: '/admin/stock', label: 'Stock', icon: Boxes },
-    { to: '/admin/receive', label: 'Receive stock', icon: PackagePlus },
-    { to: '/admin/sales', label: 'Sales and reports', icon: Receipt },
-]
-
-// The online store.
-const storeLinks = [
-    { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { to: '/admin/orderlist', label: 'Online orders', icon: ShoppingCart, also: '/admin/order/' },
-    { to: '/admin/productlist', label: 'Products', icon: Package, also: '/admin/product/' },
-    { to: '/brand', label: 'Categories', icon: Tag },
-    { to: '/admin/userlist', label: 'Users', icon: Users, also: '/admin/user/' },
-    { to: '/admin/contact', label: 'Contacts', icon: Mail },
+// Sidebar sections. Products and stock are shared by the shop counter and the online store,
+// so they get their own section instead of sitting under either one.
+const sections = [
+    {
+        title: 'Overview',
+        links: [{ to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard }],
+    },
+    {
+        title: 'Shop counter',
+        links: [
+            { to: '/admin/counter', label: 'Counter sale', icon: Store },
+            { to: '/admin/sales', label: 'Sales and reports', icon: Receipt },
+        ],
+    },
+    {
+        title: 'Products and stock',
+        links: [
+            { to: '/admin/productlist', label: 'Products', icon: Package, also: '/admin/product/' },
+            { to: '/brand', label: 'Categories', icon: Tag },
+            { to: '/admin/stock', label: 'Stock', icon: Boxes },
+            { to: '/admin/receive', label: 'Receive stock', icon: PackagePlus },
+        ],
+    },
+    {
+        title: 'Online store',
+        links: [
+            { to: '/admin/orderlist', label: 'Online orders', icon: ShoppingCart, also: '/admin/order/' },
+            { to: '/admin/userlist', label: 'Customers and users', icon: Users, also: '/admin/user/' },
+            { to: '/admin/contact', label: 'Contact messages', icon: Mail },
+        ],
+    },
 ]
 
 // Left navigation for every admin page. `compact` shows icons only, for the counter.
@@ -60,10 +75,12 @@ function AdminSideBar({ compact, onNavigate }) {
 
     return (
         <nav className={cn('flex h-full flex-col p-3', compact && 'items-center')}>
-            {heading('Shop', true)}
-            <div className="flex flex-col gap-0.5">{shopLinks.map(renderLink)}</div>
-            {heading('Online store')}
-            <div className="flex flex-col gap-0.5">{storeLinks.map(renderLink)}</div>
+            {sections.map((section, i) => (
+                <React.Fragment key={section.title}>
+                    {heading(section.title, i === 0)}
+                    <div className="flex flex-col gap-0.5">{section.links.map(renderLink)}</div>
+                </React.Fragment>
+            ))}
             <div className="mt-auto pt-3">
                 <button
                     type="button"

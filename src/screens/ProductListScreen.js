@@ -38,7 +38,7 @@ function ProductListScreen({ history }) {
         if (successCreate) {
             history.push(`/admin/product/${createdProduct._id}/edit`)
         } else {
-            dispatch(listProducts(keyword))
+            dispatch(listProducts(keyword, true))
         }
     }, [dispatch, history, userInfo, successDelete, successCreate, createdProduct, keyword])
 
@@ -75,7 +75,7 @@ function ProductListScreen({ history }) {
                                         <Th>Product</Th>
                                         <Th>Price</Th>
                                         <Th>Category</Th>
-                                        <Th>Brand</Th>
+                                        <Th>Sold in</Th>
                                         <Th className="text-right">Actions</Th>
                                     </tr>
                                 </thead>
@@ -89,13 +89,18 @@ function ProductListScreen({ history }) {
                                                     </span>
                                                     <div>
                                                         <p className="font-medium text-slate-900">{product.name}</p>
-                                                        <p className="text-xs text-slate-400">#{product._id}</p>
+                                                        <p className="text-xs text-slate-400">#{product._id}{product.code ? ` · Code ${product.code}` : ''}{product.sold_by_weight ? ' · Sold by weight' : ''}</p>
                                                     </div>
                                                 </div>
                                             </Td>
-                                            <Td className="font-medium text-slate-900">{formatTk(product.price)}</Td>
+                                            <Td className="font-medium text-slate-900">
+                                                {formatTk(product.shop_price ?? product.price)}
+                                                {product.online_price != null && Number(product.online_price) !== Number(product.shop_price) && (
+                                                    <span className="block text-xs font-normal text-slate-500">Online {formatTk(product.online_price)}</span>
+                                                )}
+                                            </Td>
                                             <Td>{product.category}</Td>
-                                            <Td>{product.brand}</Td>
+                                            <Td><SoldIn product={product} /></Td>
                                             <Td className="text-right">
                                                 <div className="inline-flex gap-1">
                                                     <Button to={`/admin/product/${product._id}/edit`} variant="ghost" size="icon" aria-label="Edit"><Pencil className="h-4 w-4" /></Button>
@@ -111,6 +116,15 @@ function ProductListScreen({ history }) {
                     )}
         </AdminLayout>
     )
+}
+
+// Where a product is sold: both channels, one of them, or neither.
+function SoldIn({ product }) {
+    const online = product.sell_online !== false
+    const shop = product.sell_in_shop !== false
+    const label = online && shop ? 'Shop and online' : online ? 'Online only' : shop ? 'Shop only' : 'Not for sale'
+    const tone = online && shop ? 'bg-slate-100 text-slate-600' : online || shop ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700'
+    return <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${tone}`}>{label}</span>
 }
 
 export default ProductListScreen

@@ -43,6 +43,11 @@ function ProductEditScreen({ match, history }) {
     const [is_offer, setIsOffer] = useState('')
     const [offer_percentage, setOfferPercentage] = useState(0)
     const [uploading, setUploading] = useState(false)
+    const [sellOnline, setSellOnline] = useState(true)
+    const [sellInShop, setSellInShop] = useState(true)
+    const [onlinePrice, setOnlinePrice] = useState('')
+    const [soldByWeight, setSoldByWeight] = useState(false)
+    const [code, setCode] = useState('')
 
     const dispatch = useDispatch()
 
@@ -77,12 +82,18 @@ function ProductEditScreen({ match, history }) {
                 setColor(product.color)
                 setBattery(product.battery)
                 setWarranty(product.warranty)
-                setPrice(product.price)
+                // `price` is what the website charges; the editor works with the shop price.
+                setPrice(Number(product.shop_price ?? product.price))
+                setSellOnline(product.sell_online !== false)
+                setSellInShop(product.sell_in_shop !== false)
+                setOnlinePrice(product.online_price != null ? String(Number(product.online_price)) : '')
+                setSoldByWeight(Boolean(product.sold_by_weight))
+                setCode(product.code || '')
                 setImage(product.image)
                 setImage2(product.image2)
                 setImage3(product.image3)
                 
-                setCountInStock(product.countInStock)
+                setCountInStock(product.stock_exact ?? product.countInStock)
                 setDescription(product.description)
                 setIsOffer(product.is_offer)
                 setOfferPercentage(product.offer_percentage)
@@ -125,6 +136,11 @@ function ProductEditScreen({ match, history }) {
             description,
             is_offer,
             offer_percentage,
+            sell_online: sellOnline,
+            sell_in_shop: sellInShop,
+            online_price: onlinePrice,
+            sold_by_weight: soldByWeight,
+            code,
         }))
     }
 
@@ -253,11 +269,39 @@ function ProductEditScreen({ match, history }) {
                         </Card>
 
                         <Card className="p-6">
+                            <h2 className="mb-1 font-semibold text-slate-900">Where it's sold</h2>
+                            <p className="mb-4 text-sm text-slate-500">The shop and the website share one stock count.</p>
+                            <div className="grid gap-3 sm:grid-cols-2">
+                                <Checkbox id="sell_online" label="Sell on the website" checked={sellOnline} onChange={(e) => setSellOnline(e.target.checked)} />
+                                <Checkbox id="sell_in_shop" label="Sell at the shop counter" checked={sellInShop} onChange={(e) => setSellInShop(e.target.checked)} />
+                            </div>
+                            {!sellOnline && !sellInShop && (
+                                <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">This product is not for sale anywhere. It stays in stock and reports.</p>
+                            )}
+                            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                                <Field label="Counter code" id="code" hint="Optional. Cashiers type it at the counter, e.g. 101.">
+                                    <Input id="code" maxLength={20} placeholder="e.g. 101" value={code} onChange={(e) => setCode(e.target.value)} />
+                                </Field>
+                                <div className="sm:pt-7">
+                                    <Checkbox id="sold_by_weight" label="Sold loose by weight (allows 1.5, 0.25 …)" checked={soldByWeight} onChange={(e) => setSoldByWeight(e.target.checked)} />
+                                </div>
+                            </div>
+                        </Card>
+
+                        <Card className="p-6">
                             <h2 className="mb-5 font-semibold text-slate-900">Pricing and stock</h2>
-                            <div className="grid gap-4 sm:grid-cols-3">
-                                {text('Price (৳)', 'price', price, setPrice, 'number')}
-                                {text('Stock', 'countinstock', countInStock, setCountInStock, 'number')}
-                                {text('Offer percentage', 'offerPercentage', offer_percentage, setOfferPercentage)}
+                            <div className="grid gap-4 sm:grid-cols-2">
+                                <Field label="Shop price (৳)" id="price">
+                                    <Input id="price" type="number" min="0" step="0.01" value={price ?? ''} onChange={(e) => setPrice(e.target.value)} required />
+                                </Field>
+                                <Field label="Online price (৳)" id="online_price" hint="Optional. Leave empty to use the shop price on the website.">
+                                    <Input id="online_price" type="number" min="0" step="0.01" placeholder={price ? String(Number(price)) : ''}
+                                        value={onlinePrice} onChange={(e) => setOnlinePrice(e.target.value)} disabled={!sellOnline} />
+                                </Field>
+                                <Field label={soldByWeight ? 'Stock (kg or unit, decimals allowed)' : 'Stock'} id="countinstock" hint="A change here is saved in the stock history as a correction.">
+                                    <Input id="countinstock" type="number" min="0" step={soldByWeight ? '0.001' : '1'} value={countInStock ?? ''} onChange={(e) => setCountInStock(e.target.value)} />
+                                </Field>
+                                {text('Offer percentage', 'offerPercentage', offer_percentage, setOfferPercentage, 'number')}
                             </div>
                             <Checkbox id="is_offer" label="This product is on offer" className="mt-4" checked={!!is_offer} onChange={(e) => setIsOffer(e.target.checked)} />
                         </Card>

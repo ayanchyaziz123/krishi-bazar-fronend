@@ -5,6 +5,18 @@ import categories from '../../components/categories'
 import Receipt from '../../inventory/Receipt'
 import { useAdminGuard, inventoryApi, errorText, PAYMENT_METHODS, formatTime } from '../../inventory/api'
 
+// Quantities are whole units, or up to 3 decimals for items sold loose by weight.
+const roundQty = (n) => Math.round(n * 1000) / 1000
+const fmtQty = (n) => String(roundQty(Number(n) || 0))
+const qtyStep = (product) => (product.sold_by_weight ? 0.25 : 1)
+// Rounded to the paisa, the same way the server works out the bill.
+const lineTotal = (line) => Math.round(line.product.selling_price * (Number(line.qty) || 0) * 100) / 100
+const qtyProblem = (line) => {
+    const qty = Number(line.qty)
+    if (line.product.sold_by_weight) return qty > 0 && roundQty(qty) === qty ? '' : `${line.product.name} needs a quantity above 0.`
+    return Number.isInteger(qty) && qty >= 1 ? '' : `${line.product.name} needs a whole number of at least 1.`
+}
+
 // Point of sale for the shop counter: pick items, take payment, print a receipt.
 // Built for staff at a busy counter: big targets, keyboard shortcuts, and a bill that
 // survives an accidental reload.
@@ -65,7 +77,7 @@ function CounterSaleScreen({ history }) {
             try {
                 const draft = JSON.parse(localStorage.getItem(draftKey) || 'null')
                 if (!draft || !draft.cart || draft.cart.length === 0) return
-                const byId = Object.fromEntries(data.map((p) => [p._id, p]))
+                const byId = Object.fromEntries(data.filter((p) => p.sell_in_shop !== false).map((p) => [p._id, p]))
                 const lines = draft.cart
                     .filter((l) => byId[l.id] && byId[l.id].countInStock > 0)
                     .map((l) => ({ product: byId[l.id], qty: Math.min(l.qty, byId[l.id].countInStock) }))
@@ -92,9 +104,12 @@ function CounterSaleScreen({ history }) {
         } catch (e) { /* ignore */ }
     }, [cart, discount, payment, customerName, customerPhone, draftKey])
 
-    const visible = products
+    // The counter only offers items sold in the shop.
+    const shopProducts = products.filter((p) => p.sell_in_shop !== false)
+
+    const visible = shopProducts
         .filter((p) => {
-            const text = `${p.name} ${p.category}`.toLowerCase()
+            const text = `${p.name} ${p.category} ${p.code || ''}`.toLowerCase()
             const matchesQuery = !query || query.toLowerCase().split(/\s+/).every((word) => text.includes(word))
             const matchesCategory = !category || (p.category || '').toLowerCase().includes(category)
             return matchesQuery && matchesCategory
@@ -113,19 +128,44 @@ function CounterSaleScreen({ history }) {
         }, 0)
     }
 
-    const addToCart = (product) => {
+    const focusQty = (id) => setTimeout(() => {
+        const el = document.getElementById(`qty-${id}`)
+        if (el) { el.focus(); el.select() }
+    }, 50)
+
+    // Adds one more of an item, or exactly `qty` when the cashier typed it (e.g. 1.5*101).
+    // A tap on a weighed item puts the cursor in its quantity box, ready for the weight.
+    const addToCart = (product, qty = null) => {
         if (product.countInStock <= 0) return
         setSaleError('')
         setRestored(false)
+        const existing = inCart(product._id)
+        if (product.sold_by_weight && qty === null && existing) {
+            flash(product._id)
+            focusQty(product._id)
+            return
+        }
         setCart((lines) => {
             const line = lines.find((l) => l.product._id === product._id)
             if (line) {
-                return lines.map((l) => l.product._id === product._id
-                    ? { ...l, qty: Math.min((Number(l.qty) || 0) + 1, product.countInStock) } : l)
+                const next = qty === null
+                    ? Math.min((Number(line.qty) || 0) + 1, product.countInStock)
+                    : roundQty((Number(line.qty) || 0) + qty)
+                return lines.map((l) => (l.product._id === product._id ? { ...l, qty: next } : l))
             }
-            return [...lines, { product, qty: 1 }]
+            return [...lines, { product, qty: qty === null ? 1 : roundQty(qty) }]
         })
         flash(product._id)
+        if (product.sold_by_weight && qty === null) focusQty(product._id)
+    }
+
+    // "101" is the item with code 101. "1.5*101" (or 1.5x101) is 1.5 of it.
+    const parseEntry = (text) => {
+        const match = text.trim().match(/^(\d+(?:\.\d+)?)\s*[*x×]\s*(\S+)$/i)
+        const code = (match ? match[2] : text.trim()).toLowerCase()
+        if (!code) return null
+        const product = shopProducts.find((p) => p.code && p.code.toLowerCase() === code)
+        return product ? { product, qty: match ? Number(match[1]) : null } : null
     }
 
     const updateLine = (id, changes) =>
@@ -133,15 +173,15 @@ function CounterSaleScreen({ history }) {
 
     const removeLine = (id) => setCart((lines) => lines.filter((l) => l.product._id !== id))
 
-    const itemCount = cart.reduce((n, l) => n + (Number(l.qty) || 0), 0)
-    const subtotal = cart.reduce((sum, l) => sum + l.product.selling_price * (Number(l.qty) || 0), 0)
+    const itemCount = cart.length
+    const subtotal = Math.round(cart.reduce((sum, l) => sum + lineTotal(l), 0) * 100) / 100
     const discountValue = Math.min(Number(discount) || 0, subtotal)
     const total = Math.max(subtotal - discountValue, 0)
     const cashValue = Number(cashGiven) || 0
     const change = payment === 'cash' && cashValue > total ? cashValue - total : 0
     const short = payment === 'cash' && cashGiven !== '' && cashValue < total ? total - cashValue : 0
     const overStock = cart.some((l) => Number(l.qty) > l.product.countInStock)
-    const badQty = cart.some((l) => !(Number(l.qty) >= 1))
+    const badQty = cart.map(qtyProblem).find(Boolean) || ''
 
     // Suggested cash amounts: the next round notes above the total.
     const quickCash = useMemo(() => {
@@ -154,7 +194,7 @@ function CounterSaleScreen({ history }) {
     // Why the sale can't be completed yet, in plain words.
     let blocker = ''
     if (cart.length === 0) blocker = 'Add items to start a bill.'
-    else if (badQty) blocker = 'Every item needs a quantity of at least 1.'
+    else if (badQty) blocker = badQty
     else if (overStock) blocker = 'One item has more than the stock available.'
     else if (Number(discount) > subtotal) blocker = 'The discount is more than the bill.'
     else if (payment === 'cash' && total > 0 && cashGiven === '') blocker = 'Enter the cash the customer gave, or tap Exact.'
@@ -219,6 +259,15 @@ function CounterSaleScreen({ history }) {
 
     const onSearchKey = (e) => {
         if (e.key === 'Enter' && !(e.ctrlKey || e.metaKey)) {
+            const entry = parseEntry(query)
+            if (entry) {
+                const { product, qty } = entry
+                if (product.countInStock <= 0) setSaleError(`${product.name} is out of stock.`)
+                else if (qty !== null && !(qty > 0)) setSaleError('The quantity must be more than 0.')
+                else if (qty !== null && !product.sold_by_weight && !Number.isInteger(qty)) setSaleError(`${product.name} is sold in whole ${product.unit}s, not ${qty}.`)
+                else { addToCart(product, qty); setQuery('') }
+                return
+            }
             const first = visible.find((p) => p.countInStock > 0)
             if (first) { addToCart(first); setQuery('') }
         } else if (e.key === 'Escape') {
@@ -239,7 +288,7 @@ function CounterSaleScreen({ history }) {
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
                             onKeyDown={onSearchKey}
-                            placeholder="Type an item name, then press Enter to add it"
+                            placeholder="Type a name or code, then press Enter. 1.5*101 adds 1.5 of code 101."
                             className="!h-12 pl-12 pr-10 text-base"
                             aria-label="Search items"
                         />
@@ -281,7 +330,10 @@ function CounterSaleScreen({ history }) {
                                         >
                                             {p.image && <img src={p.image} alt="" className="h-16 w-full object-cover" />}
                                             {line && (
-                                                <span className="absolute right-1.5 top-1.5 flex h-6 min-w-6 items-center justify-center rounded-full bg-brand-600 px-1.5 text-xs font-bold text-white shadow">{line.qty}</span>
+                                                <span className="absolute right-1.5 top-1.5 flex h-6 min-w-6 items-center justify-center rounded-full bg-brand-600 px-1.5 text-xs font-bold text-white shadow">{fmtQty(line.qty)}</span>
+                                            )}
+                                            {p.code && !soldOut && (
+                                                <span className="absolute left-1.5 top-1.5 rounded bg-white/90 px-1 py-0.5 font-mono text-[10px] font-bold text-slate-700 shadow-sm">{p.code}</span>
                                             )}
                                             {soldOut && (
                                                 <span className="absolute left-1.5 top-1.5 rounded-full bg-slate-900/80 px-1.5 py-0.5 text-[10px] font-semibold text-white">Sold out</span>
@@ -292,7 +344,7 @@ function CounterSaleScreen({ history }) {
                                                     {formatTk(p.selling_price)}<span className="text-xs font-normal text-slate-500"> / {p.unit}</span>
                                                 </p>
                                                 <p className={cn('text-[11px] leading-tight', soldOut ? 'text-rose-600' : p.low_stock ? 'font-semibold text-amber-600' : 'text-slate-500')}>
-                                                    {soldOut ? 'Out of stock' : maxed ? 'All stock is on the bill' : p.low_stock ? `Only ${p.countInStock} left` : `${p.countInStock} ${p.unit} in stock`}
+                                                    {soldOut ? 'Out of stock' : maxed ? 'All stock is on the bill' : p.low_stock ? `Only ${fmtQty(p.countInStock)} ${p.unit} left` : `${fmtQty(p.countInStock)} ${p.unit} in stock`}
                                                 </p>
                                             </div>
                                             {isFirstMatch && (
@@ -315,6 +367,7 @@ function CounterSaleScreen({ history }) {
                         <Keyboard className="h-3.5 w-3.5" />
                         <span><Kbd>/</Kbd> search</span>
                         <span><Kbd>Enter</Kbd> add first match</span>
+                        <span><Kbd>2*101</Kbd> 2 of code 101</span>
                         <span><Kbd>Esc</Kbd> clear search</span>
                         <span><Kbd>F9</Kbd> or <Kbd>Ctrl</Kbd>+<Kbd>Enter</Kbd> complete sale</span>
                     </p>
@@ -358,32 +411,35 @@ function CounterSaleScreen({ history }) {
                         <div className="divide-y divide-slate-100 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
                             {cart.map((l) => {
                                 const over = Number(l.qty) > l.product.countInStock
+                                const step = qtyStep(l.product)
                                 return (
                                     <div key={l.product._id} id={`bill-line-${l.product._id}`}
                                         className={cn('px-4 py-2 transition-colors duration-700', flashId === l.product._id && 'bg-brand-50')}>
                                         <div className="flex items-start justify-between gap-2">
                                             <p className="text-xs font-semibold text-slate-900">{l.product.name}</p>
                                             <p className="shrink-0 text-xs font-bold text-slate-900">
-                                                {formatTk(l.product.selling_price * (Number(l.qty) || 0))}
+                                                {formatTk(lineTotal(l))}
                                             </p>
                                         </div>
                                         <div className="mt-1.5 flex items-center gap-1.5">
-                                            <Button variant="secondary" size="icon" className="!h-7 !w-7" aria-label="One less"
-                                                onClick={() => (Number(l.qty) > 1 ? updateLine(l.product._id, { qty: Number(l.qty) - 1 }) : removeLine(l.product._id))}>
-                                                {Number(l.qty) > 1 ? <Minus className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5 text-rose-500" />}
+                                            <Button variant="secondary" size="icon" className="!h-7 !w-7" aria-label={l.product.sold_by_weight ? 'Less' : 'One less'}
+                                                onClick={() => (Number(l.qty) > step ? updateLine(l.product._id, { qty: roundQty(Number(l.qty) - step) }) : removeLine(l.product._id))}>
+                                                {Number(l.qty) > step ? <Minus className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5 text-rose-500" />}
                                             </Button>
-                                            <Input type="number" min="1" inputMode="numeric" value={l.qty} aria-label={`Quantity of ${l.product.name}`}
+                                            <Input id={`qty-${l.product._id}`} type="number" min={step} step={l.product.sold_by_weight ? '0.001' : '1'}
+                                                inputMode={l.product.sold_by_weight ? 'decimal' : 'numeric'} value={l.qty} aria-label={`Quantity of ${l.product.name}`}
                                                 onFocus={(e) => e.target.select()}
+                                                onKeyDown={(e) => { if (e.key === 'Enter' && !(e.ctrlKey || e.metaKey)) { e.preventDefault(); focusSearch() } }}
                                                 onChange={(e) => updateLine(l.product._id, { qty: e.target.value })}
-                                                className={cn('!h-7 !w-12 !px-1 text-center text-sm font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none', over && '!border-rose-400')} />
-                                            <Button variant="secondary" size="icon" className="!h-7 !w-7" aria-label="One more"
-                                                disabled={Number(l.qty) >= l.product.countInStock}
-                                                onClick={() => updateLine(l.product._id, { qty: (Number(l.qty) || 0) + 1 })}>
+                                                className={cn(l.product.sold_by_weight ? '!w-16' : '!w-12', '!h-7 !px-1 text-center text-sm font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none', over && '!border-rose-400')} />
+                                            <Button variant="secondary" size="icon" className="!h-7 !w-7" aria-label={l.product.sold_by_weight ? 'More' : 'One more'}
+                                                disabled={roundQty((Number(l.qty) || 0) + step) > l.product.countInStock}
+                                                onClick={() => updateLine(l.product._id, { qty: roundQty((Number(l.qty) || 0) + step) })}>
                                                 <Plus className="h-3.5 w-3.5" />
                                             </Button>
                                             <span className="text-xs text-slate-500">{l.product.unit} × {formatTk(l.product.selling_price)}</span>
                                         </div>
-                                        {over && <p className="mt-1 text-xs font-medium text-rose-600">Only {l.product.countInStock} {l.product.unit} in stock.</p>}
+                                        {over && <p className="mt-1 text-xs font-medium text-rose-600">Only {fmtQty(l.product.countInStock)} {l.product.unit} in stock.</p>}
                                     </div>
                                 )
                             })}

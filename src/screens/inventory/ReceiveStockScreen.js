@@ -113,7 +113,7 @@ function ReceiveStockScreen({ history }) {
                                                     <option key={prod._id} value={prod._id}>{prod.name} ({prod.countInStock} {prod.unit} now)</option>
                                                 ))}
                                             </Select>
-                                            <Input type="number" min="1" step="1" value={l.qty} required={Boolean(l.product)}
+                                            <Input type="number" min={p && p.sold_by_weight ? '0.001' : '1'} step={p && p.sold_by_weight ? '0.001' : '1'} value={l.qty} required={Boolean(l.product)}
                                                 onChange={(e) => updateLine(l.key, { qty: e.target.value })}
                                                 placeholder={p ? p.unit : 'Qty'} aria-label="Quantity" />
                                             <Input type="number" min="0" step="0.01" value={l.unit_cost} required={Boolean(l.product)}

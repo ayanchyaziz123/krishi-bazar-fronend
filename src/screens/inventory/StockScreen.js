@@ -120,7 +120,11 @@ function StockScreen({ history }) {
                                         {p.image && <img src={p.image} alt="" className="h-10 w-10 rounded-lg object-cover" />}
                                         <div>
                                             <p className="font-semibold text-slate-900">{p.name}</p>
-                                            <p className="text-xs text-slate-500">{p.category} · per {p.unit}</p>
+                                            <p className="text-xs text-slate-500">
+                                                {p.category} · per {p.unit}{p.sold_by_weight ? ' · by weight' : ''}{p.code ? ` · code ${p.code}` : ''}
+                                                {!p.sell_online && <span className="ml-1 font-semibold text-amber-700">· shop only</span>}
+                                                {!p.sell_in_shop && <span className="ml-1 font-semibold text-amber-700">· online only</span>}
+                                            </p>
                                         </div>
                                     </div>
                                 </Td>
@@ -138,6 +142,7 @@ function StockScreen({ history }) {
                                 <Td className="text-right">
                                     {formatTk(p.selling_price)}
                                     {p.is_offer && <div className="text-xs text-slate-500">{p.offer_percentage}% off {formatTk(p.price)}</div>}
+                                    {p.online_price !== null && p.online_price !== undefined && <div className="text-xs text-slate-500">Online {formatTk(p.online_price)}</div>}
                                 </Td>
                                 <Td className="text-right">
                                     <div className="flex justify-end gap-1">
@@ -194,7 +199,7 @@ function EditModal({ api, product, onClose, onSaved }) {
     return (
         <Modal show onClose={onClose} title={`Edit ${product.name}`}>
             <form onSubmit={save} className="space-y-4">
-                <Field label="Sold per" id="unit" hint="Stock is counted in whole units. For loose rice use kg, for spices use a pack size.">
+                <Field label="Sold per" id="unit" hint="For loose items sold by weight use kg. Turn on 'Sold loose by weight' on the product page to allow 1.5, 0.25 and so on.">
                     <Input id="unit" list="unit-suggestions" value={unit} onChange={(e) => setUnit(e.target.value)} required />
                     <datalist id="unit-suggestions">{UNIT_SUGGESTIONS.map((u) => <option key={u} value={u} />)}</datalist>
                 </Field>
@@ -244,7 +249,7 @@ function AdjustModal({ api, product, onClose, onSaved }) {
                     </Select>
                 </Field>
                 <Field label={`${info.qtyLabel} (${product.unit})`} id="qty">
-                    <Input id="qty" type="number" min="0" step="1" value={qty} onChange={(e) => setQty(e.target.value)} required />
+                    <Input id="qty" type="number" min="0" step={product.sold_by_weight ? '0.001' : '1'} value={qty} onChange={(e) => setQty(e.target.value)} required />
                 </Field>
                 <Field label="Note" id="note">
                     <Input id="note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional" />
