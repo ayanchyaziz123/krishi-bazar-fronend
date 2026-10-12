@@ -35,6 +35,7 @@ function SalesScreen({ history }) {
     const openReceipt = (id) => api.get(`sales/${id}/`).then(setReceipt).catch((e) => setError(errorText(e)))
 
     const isToday = date === todayInDhaka()
+    const showProfit = Boolean(summary && summary.shop && summary.shop.profit !== undefined)
 
     return (
         <AdminLayout
@@ -50,9 +51,12 @@ function SalesScreen({ history }) {
                             note={`${summary.shop.count} bills · ${formatTk(summary.shop.collected)} collected`} />
                         <Stat icon={Globe} label="Online orders" value={formatTk(summary.online.total)}
                             note={`${summary.online.count} orders, shipping included`} />
-                        <Stat icon={TrendingUp} label="Profit" value={formatTk(summary.shop.profit + summary.online.profit)}
-                            note={`Shop ${formatTk(summary.shop.profit)} · Online ${formatTk(summary.online.profit)}`} />
-                        <Stat icon={Trash2} label="Wastage" value={formatTk(summary.wastage_cost)} note="At buying price" />
+                        {/* Profit and costs are only sent to managers. */}
+                        {showProfit && (
+                            <Stat icon={TrendingUp} label="Profit" value={formatTk(summary.shop.profit + summary.online.profit)}
+                                note={`Shop ${formatTk(summary.shop.profit)} · Online ${formatTk(summary.online.profit)}`} />
+                        )}
+                        {showProfit && <Stat icon={Trash2} label="Wastage" value={formatTk(summary.wastage_cost)} note="At buying price" />}
                     </div>
                     {summary.missing_cost_price > 0 && (
                         <Alert variant="info">
@@ -68,7 +72,7 @@ function SalesScreen({ history }) {
                                 <thead>
                                     <tr>
                                         <Th>Bill</Th><Th>Time</Th><Th>Customer</Th><Th>Payment</Th>
-                                        <Th className="text-right">Total</Th><Th className="text-right">Profit</Th><Th></Th>
+                                        <Th className="text-right">Total</Th>{showProfit && <Th className="text-right">Profit</Th>}<Th></Th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
@@ -79,7 +83,7 @@ function SalesScreen({ history }) {
                                             <Td>{s.customer_name || <span className="text-slate-400">Walk-in</span>}</Td>
                                             <Td>{s.due > 0 ? <Badge variant="amber">Due {formatTk(s.due)}</Badge> : <Badge variant="green">{s.payment_label}</Badge>}</Td>
                                             <Td className="text-right font-semibold">{formatTk(s.total)}</Td>
-                                            <Td className="text-right">{formatTk(s.profit)}</Td>
+                                            {showProfit && <Td className="text-right">{formatTk(s.profit)}</Td>}
                                             <Td className="text-right"><Button variant="ghost" size="sm" onClick={() => openReceipt(s.id)}>Receipt</Button></Td>
                                         </tr>
                                     ))}

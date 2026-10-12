@@ -1,13 +1,16 @@
 import React, { useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
+import { Redirect } from 'react-router-dom'
 import { ShieldAlert } from 'lucide-react'
 import { logout } from '../actions/userActions'
 import { Button, Card, Container } from '../components/ui'
+import { canOpen, homeFor, roleOf } from '../admin_components/roles'
 
 // Wraps every admin page.
 // Signed out: go to login and come back here afterwards.
-// Signed in without admin rights: explain and offer to switch account,
+// Signed in without a staff role: explain and offer to switch account,
 // instead of bouncing to login, which would send a signed-in user to the home page.
+// Staff opening a page their role doesn't cover go to their own start page.
 export default function withAdminGate(Screen) {
     return function AdminGate(props) {
         const { history, location } = props
@@ -20,7 +23,9 @@ export default function withAdminGate(Screen) {
         }, [userInfo, history, here])
 
         if (!userInfo) return null
-        if (!userInfo.isAdmin) {
+        const role = roleOf(userInfo)
+        if (role && !canOpen(role, here)) return <Redirect to={homeFor(role)} />
+        if (!role) {
             const switchAccount = () => {
                 dispatch(logout())
                 history.push(`/login?redirect=${here}`)
@@ -32,10 +37,10 @@ export default function withAdminGate(Screen) {
                         <h1 className="mt-3 text-xl font-bold text-slate-900">This page is for shop staff</h1>
                         <p className="mt-2 text-sm text-slate-600">
                             You are signed in as <strong>{userInfo.name || userInfo.email}</strong>, which is a customer account.
-                            Sign in with an admin account to use the shop tools.
+                            Sign in with a staff account to use the shop tools.
                         </p>
                         <div className="mt-6 flex flex-col gap-2">
-                            <Button onClick={switchAccount}>Sign in as admin</Button>
+                            <Button onClick={switchAccount}>Sign in as staff</Button>
                             <Button variant="ghost" to="/">Back to the shop</Button>
                         </div>
                     </Card>

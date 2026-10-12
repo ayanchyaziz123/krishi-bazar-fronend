@@ -52,7 +52,9 @@ function AdminArea() {
         <Route path='/admin/productlist' component={ProductListScreen} />
         <Route path='/admin/product/:id/edit' component={ProductEditScreen} />
         <Route path='/brand' component={BrandScreen} />
-        <Route path='/admin/userlist' component={UserListScreen} />
+        <Route path='/admin/staff' component={UserListScreen} />
+        <Route path='/admin/customers' component={UserListScreen} />
+        <Redirect from='/admin/userlist' to='/admin/customers' />
         <Route path='/admin/user/:id/edit' component={UserEditScreen} />
         <Route path='/admin/contact' component={AdminContactScreen} />
         <Redirect to='/dashboard' />

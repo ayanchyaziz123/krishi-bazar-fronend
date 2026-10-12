@@ -132,6 +132,7 @@ const badgeVariants = {
     amber: 'bg-amber-50 text-amber-700 ring-amber-600/20',
     green: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
     red: 'bg-rose-50 text-rose-700 ring-rose-600/10',
+    sky: 'bg-sky-50 text-sky-700 ring-sky-600/20',
     slate: 'bg-slate-100 text-slate-700 ring-slate-500/10',
     dark: 'bg-slate-900 text-white ring-slate-900',
 }

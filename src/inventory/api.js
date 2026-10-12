@@ -1,12 +1,14 @@
 import { useEffect } from 'react'
 import { useSelector } from 'react-redux'
 import axios from 'axios'
+import { roleOf } from '../admin_components/roles'
 
 // Helpers shared by the shop back-office screens (counter sale, stock, receiving, sales).
 
+// `isAdmin` here means any staff role; AdminGate already checked the role may open the page.
 export function useAdminGuard(history) {
     const { userInfo } = useSelector((state) => state.userLogin)
-    const isAdmin = Boolean(userInfo && userInfo.isAdmin)
+    const isAdmin = Boolean(roleOf(userInfo))
     useEffect(() => {
         if (!isAdmin) history.push('/login')
     }, [isAdmin, history])
@@ -26,12 +28,11 @@ export function errorText(error) {
     return (error.response && error.response.data && error.response.data.detail) || error.message
 }
 
+// Payment types offered at the counter. Older sales may still show bKash, Nagad or Due.
 export const PAYMENT_METHODS = [
     { value: 'cash', label: 'Cash' },
-    { value: 'bkash', label: 'bKash' },
-    { value: 'nagad', label: 'Nagad' },
+    { value: 'upi', label: 'UPI' },
     { value: 'card', label: 'Card' },
-    { value: 'due', label: 'Due' },
 ]
 
 export function todayInDhaka() {

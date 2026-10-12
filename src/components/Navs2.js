@@ -1,9 +1,10 @@
 import React from 'react'
 import { useHistory } from 'react-router-dom'
-import categories from './categories'
+import { useCategories } from './categories'
 
 const Navs2 = () => {
     let history = useHistory()
+    const categories = useCategories()
 
     return (
         <div>

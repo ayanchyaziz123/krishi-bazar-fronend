@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Search, Minus, Plus, Trash2, Printer, ShoppingBasket, RotateCcw, X, Keyboard } from 'lucide-react'
 import { Alert, Button, Card, Input, Modal, Spinner, cn, formatTk } from '../../components/ui'
-import categories from '../../components/categories'
+import { useCategories } from '../../components/categories'
 import Receipt from '../../inventory/Receipt'
 import { useAdminGuard, inventoryApi, errorText, PAYMENT_METHODS, formatTime } from '../../inventory/api'
 
@@ -21,6 +21,7 @@ const qtyProblem = (line) => {
 // Built for staff at a busy counter: big targets, keyboard shortcuts, and a bill that
 // survives an accidental reload.
 function CounterSaleScreen({ history }) {
+    const categories = useCategories()
     const { userInfo, isAdmin } = useAdminGuard(history)
     const api = useMemo(() => inventoryApi(userInfo), [userInfo])
     const draftKey = `counterDraft:${userInfo ? userInfo._id : 'anon'}`
@@ -84,7 +85,7 @@ function CounterSaleScreen({ history }) {
                 if (lines.length === 0) return
                 setCart(lines)
                 setDiscount(draft.discount || '')
-                setPayment(draft.payment || 'cash')
+                setPayment(PAYMENT_METHODS.some((m) => m.value === draft.payment) ? draft.payment : 'cash')
                 setCustomerName(draft.customerName || '')
                 setCustomerPhone(draft.customerPhone || '')
                 setRestored(true)
@@ -369,7 +370,7 @@ function CounterSaleScreen({ history }) {
                         <span><Kbd>Enter</Kbd> add first match</span>
                         <span><Kbd>2*101</Kbd> 2 of code 101</span>
                         <span><Kbd>Esc</Kbd> clear search</span>
-                        <span><Kbd>F9</Kbd> or <Kbd>Ctrl</Kbd>+<Kbd>Enter</Kbd> complete sale</span>
+                        <span><Kbd>F9</Kbd> or <Kbd>Ctrl</Kbd>+<Kbd>Enter</Kbd> charge</span>
                     </p>
                 </div>
 
@@ -473,7 +474,7 @@ function CounterSaleScreen({ history }) {
                             <span className="text-xl font-bold tracking-tight">{formatTk(total)}</span>
                         </div>
 
-                        <div className="grid grid-cols-5 gap-1">
+                        <div className="grid grid-cols-3 gap-1">
                             {PAYMENT_METHODS.map((m) => (
                                 <button key={m.value} type="button" onClick={() => setPayment(m.value)}
                                     className={cn('rounded-md py-1.5 text-xs font-semibold ring-1 ring-inset transition',
@@ -522,11 +523,11 @@ function CounterSaleScreen({ history }) {
 
                         {saleError && <Alert variant="danger">{saleError}</Alert>}
 
-                        <Button block disabled={Boolean(blocker) || saving} onClick={completeSale}>
-                            {saving ? 'Saving…' : cart.length ? `Complete sale · ${formatTk(total)}` : 'Complete sale'}
+                        <Button block size="lg" className="!h-12 text-base" disabled={Boolean(blocker) || saving} onClick={completeSale}>
+                            {saving ? 'Saving…' : cart.length ? `Charge ${formatTk(total)}` : 'Charge'}
                         </Button>
                         <p className={cn('text-center text-[11px]', blocker && cart.length ? 'font-medium text-rose-600' : 'text-slate-400')}>
-                            {blocker || 'Press F9 or Ctrl+Enter to complete the sale.'}
+                            {blocker || 'Press F9 or Ctrl+Enter to charge.'}
                         </p>
                     </div>
                 </Card>

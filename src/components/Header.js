@@ -5,6 +5,7 @@ import { ShoppingBag, User, LogOut, LayoutDashboard, ChevronDown, Menu, X, Sprou
 import SearchBox from './SearchBox'
 import { logout } from '../actions/userActions'
 import { Container, cn } from './ui'
+import { homeFor, roleOf } from '../admin_components/roles'
 
 const navLinks = [
     { to: '/', label: 'Shop', exact: true },
@@ -123,9 +124,9 @@ function Header() {
                                         <Link to="/profile" className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
                                             <User className="h-4 w-4 text-slate-400" /> Profile
                                         </Link>
-                                        {userInfo.isAdmin && (
-                                            <Link to="/dashboard" className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
-                                                <LayoutDashboard className="h-4 w-4 text-slate-400" /> Dashboard
+                                        {roleOf(userInfo) && (
+                                            <Link to={homeFor(roleOf(userInfo))} className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
+                                                <LayoutDashboard className="h-4 w-4 text-slate-400" /> {roleOf(userInfo) === 'manager' ? 'Dashboard' : 'Staff area'}
                                             </Link>
                                         )}
                                         <div className="my-1 h-px bg-slate-100" />

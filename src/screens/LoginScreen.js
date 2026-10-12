@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import Loader from '../components/Loader'
 import Message from '../components/Message'
 import AuthCard from '../components/AuthCard'
+import { homeFor, roleOf } from '../admin_components/roles'
 import { Field, Input, Button } from '../components/ui'
 import { login } from '../actions/userActions'
 
@@ -20,7 +21,9 @@ function LoginScreen({ location, history }) {
 
     useEffect(() => {
         if (userInfo) {
-            history.push(redirect)
+            // Cashiers and stock keepers start on their own page, not the shop.
+            const role = roleOf(userInfo)
+            history.push(redirect === '/' && role && role !== 'manager' ? homeFor(role) : redirect)
         }
     }, [history, userInfo, redirect])
 

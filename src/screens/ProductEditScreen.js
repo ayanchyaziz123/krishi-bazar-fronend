@@ -7,7 +7,7 @@ import Message from '../components/Message'
 import FormContainer from '../components/FormContainer'
 import { ArrowLeft, Upload } from 'lucide-react'
 import { Card, Field, Input, Checkbox, Button } from '../components/ui'
-import categories from '../components/categories'
+import { useCategories } from '../components/categories'
 import { listProductDetails, updateProduct } from '../actions/productActions'
 import { PRODUCT_UPDATE_RESET } from '../constants/productConstants'
 import { CKEditor } from '@ckeditor/ckeditor5-react';
@@ -17,6 +17,7 @@ import ClassicEditor from '@ckeditor/ckeditor5-build-classic';
 function ProductEditScreen({ match, history }) {
 
     const productId = match.params.id
+    const categories = useCategories()
 
     
     const [category, setCategory] = useState('')

@@ -6,6 +6,7 @@ import Message from '../components/Message'
 import AdminLayout from '../admin_components/AdminLayout'
 import { Table, Th, Td, Button, Badge, formatTk } from '../components/ui'
 import { listOrders } from '../actions/orderActions'
+import { handlesOrders } from '../admin_components/roles'
 
 function OrderListScreen({ history }) {
 
@@ -18,7 +19,7 @@ function OrderListScreen({ history }) {
     const { userInfo } = userLogin
 
     useEffect(() => {
-        if (userInfo && userInfo.isAdmin) {
+        if (handlesOrders(userInfo)) {
             dispatch(listOrders())
         } else {
             history.push('/login')
@@ -49,14 +50,14 @@ function OrderListScreen({ history }) {
                                     <tr key={order._id} className="hover:bg-slate-50/60">
                                         <Td className="font-semibold text-slate-900">#{order._id}</Td>
                                         <Td>{order.user && order.user.name}</Td>
-                                        <Td>{order.createdAt.substring(0, 10)}</Td>
+                                        <Td>{(order.createdAt || '').substring(0, 10)}</Td>
                                         <Td>{formatTk(order.totalPrice)}</Td>
                                         <Td>{order.isPaid
-                                            ? <Badge variant="green">{order.paidAt.substring(0, 10)}</Badge>
+                                            ? <Badge variant="green">{order.paidAt ? order.paidAt.substring(0, 10) : 'Paid'}</Badge>
                                             : <Badge variant="red">Unpaid</Badge>}
                                         </Td>
                                         <Td>{order.isDelivered
-                                            ? <Badge variant="green">{order.deliveredAt.substring(0, 10)}</Badge>
+                                            ? <Badge variant="green">{order.deliveredAt ? order.deliveredAt.substring(0, 10) : 'Delivered'}</Badge>
                                             : <Badge variant="amber">Pending</Badge>}
                                         </Td>
                                         <Td className="text-right">

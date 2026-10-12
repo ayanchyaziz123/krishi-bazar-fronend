@@ -8,6 +8,9 @@ import Loader from '../components/Loader'
 import { Container, PageHeader, Card, Button, formatTk } from '../components/ui'
 import { getOrderDetails, payOrder, deliverOrder } from '../actions/orderActions'
 import { ORDER_PAY_RESET, ORDER_DELIVER_RESET } from '../constants/orderConstants'
+import { handlesOrders } from '../admin_components/roles'
+
+const showDate = (iso) => new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 
 function OrderScreen({ match, history }) {
     const orderId = match.params.id
@@ -91,7 +94,7 @@ function OrderScreen({ match, history }) {
                         </div>
                         <div className="mt-4">
                             {order.isDelivered ? (
-                                <Message variant='success'>Delivered on {order.deliveredAt}</Message>
+                                <Message variant='success'>{order.deliveredAt ? `Delivered on ${showDate(order.deliveredAt)}` : 'Delivered'}</Message>
                             ) : (
                                 <Message variant='warning'>Not delivered yet</Message>
                             )}
@@ -103,7 +106,7 @@ function OrderScreen({ match, history }) {
                         <p className="text-sm text-slate-600">Method: {order.paymentMethod}</p>
                         <div className="mt-4">
                             {order.isPaid ? (
-                                <Message variant='success'>Paid on {order.paidAt}</Message>
+                                <Message variant='success'>{order.paidAt ? `Paid on ${showDate(order.paidAt)}` : 'Paid'}</Message>
                             ) : (
                                 <Message variant='warning'>Not paid yet</Message>
                             )}
@@ -155,7 +158,7 @@ function OrderScreen({ match, history }) {
                     )}
 
                     {loadingDeliver && <Loader />}
-                    {userInfo && userInfo.isAdmin && order.isPaid && !order.isDelivered && (
+                    {handlesOrders(userInfo) && order.isPaid && !order.isDelivered && (
                         <Button block className="mt-6" onClick={deliverHandler}>
                             Mark as delivered
                         </Button>

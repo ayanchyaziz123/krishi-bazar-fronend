@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
+import { Link } from 'react-router-dom'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 import Loader from '../components/Loader'
 import Message from '../components/Message'
@@ -26,6 +27,7 @@ function ProductListScreen({ history }) {
     const { userInfo } = userLogin
 
     let keyword = history.location.search
+    const filterWord = new URLSearchParams(keyword).get('keyword')
 
     useEffect(() => {
         dispatch({ type: PRODUCT_CREATE_RESET })
@@ -58,6 +60,12 @@ function ProductListScreen({ history }) {
             subtitle="Add, edit and remove products from the store."
             action={<Button onClick={createProductHandler}><Plus className="h-4 w-4" /> Create product</Button>}
         >
+            {filterWord && (
+                <div className="mb-4 flex items-center justify-between gap-3 rounded-xl bg-brand-50 px-4 py-2.5 text-sm text-brand-800">
+                    <span>Showing products in <strong>{filterWord}</strong></span>
+                    <Link to="/admin/productlist" className="font-semibold hover:underline">Show all products</Link>
+                </div>
+            )}
             {loadingDelete && <Loader />}
             {errorDelete && <Message variant='danger' className="mb-4">{errorDelete}</Message>}
             {loadingCreate && <Loader />}

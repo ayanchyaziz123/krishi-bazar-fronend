@@ -68,8 +68,11 @@ function StockScreen({ history }) {
                             tone={summary.low_stock.length ? 'amber' : 'slate'} onClick={() => setFilter('low')} note="At or below reorder level" />
                         <StatCard icon={CalendarClock} label="Expiring within 7 days" value={summary.expiring.length}
                             tone={summary.expiring.length ? 'red' : 'slate'} onClick={() => setFilter('expiring')} note="Batches still on the shelf" />
-                        <StatCard icon={Coins} label="Customer dues" value={formatTk(summary.dues.total)}
-                            note={`${summary.dues.count} unpaid ${summary.dues.count === 1 ? 'bill' : 'bills'}`} onClick={() => history.push('/admin/sales')} />
+                        {/* Money owed is only sent to roles that handle sales. */}
+                        {summary.dues && (
+                            <StatCard icon={Coins} label="Customer dues" value={formatTk(summary.dues.total)}
+                                note={`${summary.dues.count} unpaid ${summary.dues.count === 1 ? 'bill' : 'bills'}`} onClick={() => history.push('/admin/sales')} />
+                        )}
                     </div>
 
                     {summary.expiring.length > 0 && filter === 'expiring' && (
