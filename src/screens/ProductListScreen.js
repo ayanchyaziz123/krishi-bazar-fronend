@@ -1,128 +1,216 @@
-import React, { useEffect } from 'react'
-import { useDispatch, useSelector } from 'react-redux'
-import { Link } from 'react-router-dom'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
-import Loader from '../components/Loader'
-import Message from '../components/Message'
-import Paginate from '../components/Paginate'
+import React, { useEffect, useMemo, useState } from 'react'
+import axios from 'axios'
+import { useSelector } from 'react-redux'
+import { Plus, Pencil, Trash2, Search, ChevronLeft, ChevronRight } from 'lucide-react'
 import AdminLayout from '../admin_components/AdminLayout'
-import { Table, Th, Td, Button, formatTk } from '../components/ui'
-import { listProducts, deleteProduct, createProduct } from '../actions/productActions'
-import { PRODUCT_CREATE_RESET } from '../constants/productConstants'
+import { Alert, Badge, Button, Card, Input, Modal, Select, Spinner, cn, formatTk } from '../components/ui'
+import { useCategories } from '../components/categories'
 
-function ProductListScreen({ history }) {
+const errorText = (e) => (e.response && e.response.data && e.response.data.detail) || e.message
 
-    const dispatch = useDispatch()
+const CHANNELS = [
+    { value: '', label: 'Sold anywhere' },
+    { value: 'both', label: 'Shop and online' },
+    { value: 'shop_only', label: 'Shop only' },
+    { value: 'online_only', label: 'Online only' },
+    { value: 'hidden', label: 'Not for sale' },
+]
 
-    const productList = useSelector(state => state.productList)
-    const { loading, error, products, pages, page } = productList
+// Every product in the store, with search, filters and paging kept in the address bar
+// so a filtered list can be bookmarked or shared.
+function ProductListScreen({ history, location }) {
+    const { userInfo } = useSelector((state) => state.userLogin)
+    const auth = useMemo(() => ({ headers: { Authorization: `Bearer ${userInfo.token}` } }), [userInfo])
+    const categories = useCategories()
 
-    const productDelete = useSelector(state => state.productDelete)
-    const { loading: loadingDelete, error: errorDelete, success: successDelete } = productDelete
+    const params = new URLSearchParams(location.search)
+    const filters = {
+        keyword: params.get('keyword') || '',
+        category: params.get('category') || '',
+        channel: params.get('channel') || '',
+        sort: params.get('sort') || 'name',
+        page_size: params.get('page_size') || '25',
+        page: Number(params.get('page')) || 1,
+    }
 
-    const productCreate = useSelector(state => state.productCreate)
-    const { loading: loadingCreate, error: errorCreate, success: successCreate, product: createdProduct } = productCreate
+    const [search, setSearch] = useState(filters.keyword)
+    const [data, setData] = useState(null)
+    const [error, setError] = useState('')
+    const [deleting, setDeleting] = useState(null)
+    const [reload, setReload] = useState(0)
 
-    const userLogin = useSelector(state => state.userLogin)
-    const { userInfo } = userLogin
+    // Change one or more filters; any change other than the page goes back to page 1.
+    const update = (changes) => {
+        const next = new URLSearchParams(location.search)
+        Object.entries(changes).forEach(([k, v]) => (v ? next.set(k, v) : next.delete(k)))
+        if (!('page' in changes)) next.delete('page')
+        history.replace({ search: next.toString() })
+    }
 
-    let keyword = history.location.search
-    const filterWord = new URLSearchParams(keyword).get('keyword')
+    // Search as the user types, after a short pause.
+    useEffect(() => {
+        if (search === filters.keyword) return undefined
+        const timer = setTimeout(() => update({ keyword: search.trim() }), 300)
+        return () => clearTimeout(timer)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [search])
 
     useEffect(() => {
-        dispatch({ type: PRODUCT_CREATE_RESET })
+        const query = new URLSearchParams({ scope: 'all', sort: filters.sort, page_size: filters.page_size, page: filters.page })
+        if (filters.keyword) query.set('keyword', filters.keyword)
+        if (filters.category) query.set('category', filters.category)
+        if (filters.channel) query.set('channel', filters.channel)
+        axios.get(`/api/products/?${query}`, auth)
+            .then((res) => { setData(res.data); setError('') })
+            .catch((e) => setError(errorText(e)))
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [location.search, auth, reload])
 
-        if (!userInfo || !userInfo.isAdmin) {
-            history.push('/login')
-            return
-        }
-
-        if (successCreate) {
-            history.push(`/admin/product/${createdProduct._id}/edit`)
-        } else {
-            dispatch(listProducts(keyword, true))
-        }
-    }, [dispatch, history, userInfo, successDelete, successCreate, createdProduct, keyword])
-
-    const deleteHandler = (id) => {
-        if (window.confirm('Are you sure you want to delete this product?')) {
-            dispatch(deleteProduct(id))
-        }
-    }
-
-    const createProductHandler = () => {
-        dispatch(createProduct())
-    }
+    const filtered = filters.keyword || filters.category || filters.channel
 
     return (
         <AdminLayout
             title="Products"
-            subtitle="Add, edit and remove products from the store."
-            action={<Button onClick={createProductHandler}><Plus className="h-4 w-4" /> Create product</Button>}
+            subtitle="Everything sold in the shop and online."
+            action={<Button to="/admin/product/new"><Plus className="h-4 w-4" /> New product</Button>}
         >
-            {filterWord && (
-                <div className="mb-4 flex items-center justify-between gap-3 rounded-xl bg-brand-50 px-4 py-2.5 text-sm text-brand-800">
-                    <span>Showing products in <strong>{filterWord}</strong></span>
-                    <Link to="/admin/productlist" className="font-semibold hover:underline">Show all products</Link>
+            <div className="mb-4 flex flex-col gap-2 lg:flex-row">
+                <div className="relative flex-1">
+                    <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, category or counter code" className="pl-10" aria-label="Search products" />
                 </div>
-            )}
-            {loadingDelete && <Loader />}
-            {errorDelete && <Message variant='danger' className="mb-4">{errorDelete}</Message>}
-            {loadingCreate && <Loader />}
-            {errorCreate && <Message variant='danger' className="mb-4">{errorCreate}</Message>}
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:flex">
+                    <Select value={filters.category} onChange={(e) => update({ category: e.target.value })} aria-label="Category" className="lg:!w-40">
+                        <option value="">All categories</option>
+                        {categories.map((c) => <option key={c.keyword} value={c.keyword}>{c.label}</option>)}
+                    </Select>
+                    <Select value={filters.channel} onChange={(e) => update({ channel: e.target.value })} aria-label="Where it's sold" className="lg:!w-44">
+                        {CHANNELS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                    </Select>
+                    <Select value={filters.sort} onChange={(e) => update({ sort: e.target.value })} aria-label="Sort" className="lg:!w-44">
+                        <option value="name">Name A–Z</option>
+                        <option value="newest">Newest first</option>
+                        <option value="price_asc">Price, low to high</option>
+                        <option value="price_desc">Price, high to low</option>
+                    </Select>
+                    <Select value={filters.page_size} onChange={(e) => update({ page_size: e.target.value })} aria-label="Rows per page" className="lg:!w-36">
+                        {['10', '25', '50', '100'].map((n) => <option key={n} value={n}>{n} per page</option>)}
+                    </Select>
+                </div>
+            </div>
 
-            {loading
-                ? (<Loader />)
-                : error
-                    ? (<Message variant='danger'>{error}</Message>)
-                    : (
-                        <>
-                            <Table>
-                                <thead>
+            {error && <Alert variant="danger" className="mb-4">{error}</Alert>}
+
+            {!data ? <Spinner /> : (
+                <Card className="overflow-hidden rounded-xl">
+                    <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3 text-sm text-slate-600">
+                        <span>{data.count} {data.count === 1 ? 'product' : 'products'}{filtered ? ' match' : ''}</span>
+                        {filtered && (
+                            <button type="button" className="font-semibold text-brand-700 hover:underline" onClick={() => { setSearch(''); history.replace({ search: '' }) }}>
+                                Clear filters
+                            </button>
+                        )}
+                    </div>
+                    {data.products.length === 0 ? (
+                        <p className="px-5 py-12 text-center text-sm text-slate-500">No products match. Try another search or clear the filters.</p>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                     <tr>
-                                        <Th>Product</Th>
-                                        <Th>Price</Th>
-                                        <Th>Category</Th>
-                                        <Th>Sold in</Th>
-                                        <Th className="text-right">Actions</Th>
+                                        <th className="px-5 py-2.5">Product</th>
+                                        <th className="px-3 py-2.5">Category</th>
+                                        <th className="px-3 py-2.5 text-right">Price</th>
+                                        <th className="px-3 py-2.5 text-right">Stock</th>
+                                        <th className="px-3 py-2.5">Sold in</th>
+                                        <th className="px-5 py-2.5" />
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
-                                    {products.map(product => (
-                                        <tr key={product._id} className="hover:bg-slate-50/60">
-                                            <Td>
+                                    {data.products.map((p) => (
+                                        <tr key={p._id} className="hover:bg-slate-50/60">
+                                            <td className="px-5 py-2.5">
                                                 <div className="flex items-center gap-3">
                                                     <span className="flex h-10 w-12 shrink-0 items-center justify-center rounded-lg bg-slate-50 p-1">
-                                                        <img src={product.image} alt="" className="max-h-full max-w-full object-contain" />
+                                                        <img src={p.image} alt="" className="max-h-full max-w-full object-contain" />
                                                     </span>
-                                                    <div>
-                                                        <p className="font-medium text-slate-900">{product.name}</p>
-                                                        <p className="text-xs text-slate-400">#{product._id}{product.code ? ` · Code ${product.code}` : ''}{product.sold_by_weight ? ' · Sold by weight' : ''}</p>
+                                                    <div className="min-w-0">
+                                                        <p className="truncate font-medium text-slate-900">{p.name}</p>
+                                                        <p className="text-xs text-slate-400">
+                                                            #{p._id}{p.code ? ` · code ${p.code}` : ''}{p.weight ? ` · ${p.weight}` : ''}{p.sold_by_weight ? ' · by weight' : ''}
+                                                        </p>
                                                     </div>
                                                 </div>
-                                            </Td>
-                                            <Td className="font-medium text-slate-900">
-                                                {formatTk(product.shop_price ?? product.price)}
-                                                {product.online_price != null && Number(product.online_price) !== Number(product.shop_price) && (
-                                                    <span className="block text-xs font-normal text-slate-500">Online {formatTk(product.online_price)}</span>
+                                            </td>
+                                            <td className="px-3 py-2.5 text-slate-600">{p.category}</td>
+                                            <td className="px-3 py-2.5 text-right font-medium text-slate-900">
+                                                {formatTk(p.shop_price ?? p.price)}
+                                                {p.online_price != null && Number(p.online_price) !== Number(p.shop_price) && (
+                                                    <span className="block text-xs font-normal text-slate-500">Online {formatTk(p.online_price)}</span>
                                                 )}
-                                            </Td>
-                                            <Td>{product.category}</Td>
-                                            <Td><SoldIn product={product} /></Td>
-                                            <Td className="text-right">
+                                                {p.is_offer && p.offer_percentage > 0 && <span className="block text-xs font-normal text-amber-700">{p.offer_percentage}% off</span>}
+                                            </td>
+                                            <td className={cn('px-3 py-2.5 text-right', (p.stock_exact ?? p.countInStock) <= 0 ? 'font-semibold text-rose-600' : 'text-slate-700')}>
+                                                {p.stock_exact ?? p.countInStock}
+                                            </td>
+                                            <td className="px-3 py-2.5"><SoldIn product={p} /></td>
+                                            <td className="px-5 py-2.5 text-right">
                                                 <div className="inline-flex gap-1">
-                                                    <Button to={`/admin/product/${product._id}/edit`} variant="ghost" size="icon" aria-label="Edit"><Pencil className="h-4 w-4" /></Button>
-                                                    <Button variant="danger-soft" size="icon" onClick={() => deleteHandler(product._id)} aria-label="Delete"><Trash2 className="h-4 w-4" /></Button>
+                                                    <Button to={`/admin/product/${p._id}/edit`} variant="ghost" size="icon" aria-label={`Edit ${p.name}`}><Pencil className="h-4 w-4" /></Button>
+                                                    <Button variant="danger-soft" size="icon" onClick={() => setDeleting(p)} aria-label={`Delete ${p.name}`}><Trash2 className="h-4 w-4" /></Button>
                                                 </div>
-                                            </Td>
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>
-                            </Table>
-                            <Paginate pages={pages} page={page} isAdmin={true} />
-                        </>
+                            </table>
+                        </div>
                     )}
+                    {data.pages > 1 && (
+                        <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3 text-sm">
+                            <span className="text-slate-500">Page {data.page} of {data.pages}</span>
+                            <div className="flex gap-1">
+                                <Button variant="secondary" size="sm" disabled={data.page <= 1} onClick={() => update({ page: String(data.page - 1) })}>
+                                    <ChevronLeft className="h-4 w-4" /> Previous
+                                </Button>
+                                <Button variant="secondary" size="sm" disabled={data.page >= data.pages} onClick={() => update({ page: String(data.page + 1) })}>
+                                    Next <ChevronRight className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                </Card>
+            )}
+
+            {deleting && (
+                <DeleteProduct product={deleting} auth={auth} onClose={() => setDeleting(null)}
+                    onDeleted={() => { setDeleting(null); setReload((n) => n + 1) }} />
+            )}
         </AdminLayout>
+    )
+}
+
+function DeleteProduct({ product, auth, onClose, onDeleted }) {
+    const [error, setError] = useState('')
+    const [busy, setBusy] = useState(false)
+    const remove = () => {
+        setBusy(true)
+        axios.delete(`/api/products/delete/${product._id}/`, auth)
+            .then(onDeleted)
+            .catch((e) => { setError(errorText(e)); setBusy(false) })
+    }
+    return (
+        <Modal show onClose={onClose} title={`Delete ${product.name}?`} size="sm">
+            <p className="text-sm text-slate-600">
+                It disappears from the shop and the counter, and its stock history is removed. Past sales keep its name.
+                {' '}If you only want to stop selling it, untick "Sell on the website" and "Sell at the shop counter" on its edit page instead.
+            </p>
+            {error && <Alert variant="danger" className="mt-3">{error}</Alert>}
+            <div className="mt-5 flex gap-2">
+                <Button block variant="secondary" autoFocus onClick={onClose}>Keep it</Button>
+                <Button block variant="danger" disabled={busy} onClick={remove}>Delete</Button>
+            </div>
+        </Modal>
     )
 }
 
@@ -131,8 +219,7 @@ function SoldIn({ product }) {
     const online = product.sell_online !== false
     const shop = product.sell_in_shop !== false
     const label = online && shop ? 'Shop and online' : online ? 'Online only' : shop ? 'Shop only' : 'Not for sale'
-    const tone = online && shop ? 'bg-slate-100 text-slate-600' : online || shop ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700'
-    return <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${tone}`}>{label}</span>
+    return <Badge variant={online && shop ? 'slate' : online || shop ? 'amber' : 'red'}>{label}</Badge>
 }
 
 export default ProductListScreen

@@ -52,7 +52,7 @@ function BrandScreen() {
                                             matches categories containing “{c.keyword}”
                                         </p>
                                     </div>
-                                    <Link to={`/admin/productlist?keyword=${encodeURIComponent(c.keyword)}`}
+                                    <Link to={`/admin/productlist?category=${encodeURIComponent(c.keyword)}`}
                                         className="inline-flex items-center gap-0.5 rounded-lg px-2 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50">
                                         View products <ChevronRight className="h-3.5 w-3.5" />
                                     </Link>

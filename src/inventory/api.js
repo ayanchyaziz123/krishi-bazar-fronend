@@ -10,7 +10,7 @@ export function useAdminGuard(history) {
     const { userInfo } = useSelector((state) => state.userLogin)
     const isAdmin = Boolean(roleOf(userInfo))
     useEffect(() => {
-        if (!isAdmin) history.push('/login')
+        if (!isAdmin) history.push('/staff')
     }, [isAdmin, history])
     return { userInfo, isAdmin }
 }
@@ -21,6 +21,10 @@ export function inventoryApi(userInfo) {
         get: (path) => axios.get(`/api/inventory/${path}`, config).then((r) => r.data),
         post: (path, body) => axios.post(`/api/inventory/${path}`, body, config).then((r) => r.data),
         patch: (path, body) => axios.patch(`/api/inventory/${path}`, body, config).then((r) => r.data),
+        // A form with a file in it, such as a delivery with its receipt.
+        postForm: (path, form) => axios.post(`/api/inventory/${path}`, form, config).then((r) => r.data),
+        // A private file, fetched with the login so it can be shown or opened.
+        blob: (path) => axios.get(`/api/inventory/${path}`, { ...config, responseType: 'blob' }).then((r) => r.data),
     }
 }
 

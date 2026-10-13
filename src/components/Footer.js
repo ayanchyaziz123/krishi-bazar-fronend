@@ -30,6 +30,7 @@ function Footer() {
                             <li><Link to="/topReviewProductScreen" className="hover:text-white">Top reviewed</Link></li>
                             <li><Link to="/priceRange" className="hover:text-white">Shop by budget</Link></li>
                             <li><Link to="/contact" className="hover:text-white">Contact us</Link></li>
+                            <li><Link to="/staff" className="hover:text-white">Staff sign-in</Link></li>
                         </ul>
                     </div>
 

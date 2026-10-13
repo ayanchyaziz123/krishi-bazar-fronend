@@ -79,7 +79,7 @@ function StockScreen({ history }) {
                         <Alert variant="warning" className="mb-4">
                             {summary.expiring.map((e, i) => (
                                 <span key={i} className="mr-4 inline-block">
-                                    <strong>{e.name}</strong>: batch of {e.batch_qty} {e.unit} {e.days_left < 0 ? `expired ${-e.days_left} days ago` : e.days_left === 0 ? 'expires today' : `expires in ${e.days_left} days`}
+                                    <strong>{e.name}</strong>{e.batch_no ? ` (batch ${e.batch_no})` : ''}: {e.batch_qty} {e.unit} left {e.days_left < 0 ? `expired ${-e.days_left} days ago` : e.days_left === 0 ? 'expires today' : `expires in ${e.days_left} days`}
                                 </span>
                             ))}
                         </Alert>
@@ -114,8 +114,11 @@ function StockScreen({ history }) {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                     {visible.map((p) => {
-                        const margin = p.cost_price !== null && p.selling_price > 0
-                            ? Math.round(((p.selling_price - p.cost_price) / p.selling_price) * 100) : null
+                        // The shelf average when batches were bought at different prices, otherwise the last price paid.
+                        const cost = p.cost_avg ?? p.cost_price
+                        const mixed = p.cost_min !== null && p.cost_min !== undefined && p.cost_min !== p.cost_max
+                        const margin = cost !== null && cost !== undefined && p.selling_price > 0
+                            ? Math.round(((p.selling_price - cost) / p.selling_price) * 100) : null
                         return (
                             <tr key={p._id} className="hover:bg-slate-50/60">
                                 <Td>
@@ -139,8 +142,13 @@ function StockScreen({ history }) {
                                 </Td>
                                 <Td className="text-right">{p.reorder_level}</Td>
                                 <Td className="text-right">
-                                    {p.cost_price === null ? <Badge variant="amber">Not set</Badge> : formatTk(p.cost_price)}
-                                    {margin !== null && <div className={cn('text-xs', margin < 0 ? 'font-semibold text-rose-600' : 'text-slate-500')}>{margin}% margin</div>}
+                                    {cost === null || cost === undefined ? <Badge variant="amber">Not set</Badge> : mixed ? (
+                                        <span title="Batches on the shelf were bought at different prices. Each sale uses its own batch's price.">
+                                            avg {formatTk(cost)}
+                                            <span className="block text-xs text-slate-500">{formatTk(p.cost_min)}–{formatTk(p.cost_max)}</span>
+                                        </span>
+                                    ) : formatTk(cost)}
+                                    {margin !== null && <div className={cn('text-xs', margin < 0 ? 'font-semibold text-rose-600' : 'text-slate-500')}>{margin}% margin{mixed ? ' on avg' : ''}</div>}
                                 </Td>
                                 <Td className="text-right">
                                     {formatTk(p.selling_price)}
@@ -206,7 +214,7 @@ function EditModal({ api, product, onClose, onSaved }) {
                     <Input id="unit" list="unit-suggestions" value={unit} onChange={(e) => setUnit(e.target.value)} required />
                     <datalist id="unit-suggestions">{UNIT_SUGGESTIONS.map((u) => <option key={u} value={u} />)}</datalist>
                 </Field>
-                <Field label="Buying price per unit" id="cost" hint="Updated automatically each time you receive stock.">
+                <Field label="Last buying price per unit" id="cost" hint="Updated each time you receive stock. Used for older stock with no batch; each batch keeps its own price.">
                     <Input id="cost" type="number" min="0" step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} />
                 </Field>
                 <Field label="Warn when stock falls to" id="reorder">
@@ -266,14 +274,48 @@ function AdjustModal({ api, product, onClose, onSaved }) {
 
 function HistoryModal({ api, product, onClose }) {
     const [moves, setMoves] = useState(null)
+    const [shelf, setShelf] = useState(null)
     const [error, setError] = useState('')
 
     useEffect(() => {
         api.get(`movements/?product=${product._id}`).then(setMoves).catch((e) => setError(errorText(e)))
+        api.get(`products/${product._id}/batches/`).then(setShelf).catch(() => {})
     }, [api, product._id])
 
     return (
-        <Modal show onClose={onClose} title={`${product.name} history`}>
+        <Modal show onClose={onClose} title={`${product.name} history`} size="lg">
+            {shelf && (shelf.batches.length > 0 || shelf.untracked > 0) && (
+                <div className="mb-5">
+                    <p className="mb-2 text-sm font-semibold text-slate-900">On the shelf now <span className="font-normal text-slate-500">· sold oldest first</span></p>
+                    <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 text-sm">
+                        {shelf.untracked > 0 && (
+                            <li className="flex items-center justify-between gap-3 px-3 py-2">
+                                <span className="text-slate-600">Older stock, from before batches were recorded</span>
+                                <span className="font-semibold">{shelf.untracked} {product.unit}</span>
+                            </li>
+                        )}
+                        {shelf.batches.map((b, i) => (
+                            <li key={i} className="flex items-center justify-between gap-3 px-3 py-2">
+                                <div className="min-w-0">
+                                    <p className="font-medium text-slate-900">{b.batch_no ? `Batch ${b.batch_no}` : `Delivery #${b.delivery}`}</p>
+                                    <p className="text-xs text-slate-500">
+                                        Received {new Date(`${b.received_on}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}{b.supplier ? ` from ${b.supplier}` : ''} · {formatTk(b.unit_cost)} each
+                                    </p>
+                                </div>
+                                <div className="shrink-0 text-right">
+                                    <p className="font-semibold text-slate-900">{b.remaining} of {b.qty} {product.unit}</p>
+                                    {b.expiry_date && (
+                                        <p className={cn('text-xs', b.days_left < 0 ? 'font-semibold text-rose-600' : b.days_left <= 7 ? 'font-semibold text-amber-600' : 'text-slate-500')}>
+                                            {b.days_left < 0 ? `Expired ${-b.days_left} days ago` : b.days_left === 0 ? 'Expires today' : `Expires in ${b.days_left} days`}
+                                        </p>
+                                    )}
+                                </div>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+            <p className="mb-2 text-sm font-semibold text-slate-900">Stock changes</p>
             {error ? <Alert variant="danger">{error}</Alert> : !moves ? <Spinner /> : moves.length === 0 ? (
                 <p className="text-sm text-slate-500">No stock changes recorded yet. Changes appear here from now on.</p>
             ) : (

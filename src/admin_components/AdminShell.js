@@ -1,10 +1,59 @@
-import React, { useEffect, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
-import { useSelector } from 'react-redux'
+import React, { useEffect, useRef, useState } from 'react'
+import { Link, useHistory, useLocation } from 'react-router-dom'
+import { useDispatch, useSelector } from 'react-redux'
 import { Sprout, Maximize, Minimize, Menu, X, ExternalLink, Plus } from 'lucide-react'
 import AdminSideBar from './AdminSideBar'
-import { cn } from '../components/ui'
+import { Button, Modal, cn } from '../components/ui'
+import ErrorBoundary from '../components/ErrorBoundary'
+import { logout } from '../actions/userActions'
 import { ROLE_LABELS, canOpen, homeFor, roleOf } from './roles'
+
+// Sign out after this long without activity, so the next person at a shared
+// computer can't use the previous login. A warning shows for the last minute.
+const IDLE_MINUTES = 30
+const WARN_SECONDS = 60
+const ACTIVITY_KEY = 'staffLastActive'
+const ACTIVITY_EVENTS = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'wheel']
+
+// Shared across tabs through localStorage, so activity in one tab keeps the others signed in.
+const readActivity = () => {
+    try { return Number(localStorage.getItem(ACTIVITY_KEY)) || 0 } catch (e) { return 0 }
+}
+const writeActivity = (time) => {
+    try { localStorage.setItem(ACTIVITY_KEY, String(time)) } catch (e) { /* storage unavailable */ }
+}
+
+function useIdleSignOut(onSignOut) {
+    const [secondsLeft, setSecondsLeft] = useState(null)
+    const lastWrite = useRef(0)
+
+    useEffect(() => {
+        let local = Date.now()
+        writeActivity(local)
+        const bump = () => {
+            local = Date.now()
+            // Writing on every mouse move is wasteful; every few seconds is enough.
+            if (local - lastWrite.current > 5000) {
+                lastWrite.current = local
+                writeActivity(local)
+            }
+        }
+        ACTIVITY_EVENTS.forEach((e) => window.addEventListener(e, bump, { passive: true }))
+        const timer = setInterval(() => {
+            const last = Math.max(local, readActivity())
+            const remaining = IDLE_MINUTES * 60 - (Date.now() - last) / 1000
+            if (remaining <= 0) onSignOut()
+            else setSecondsLeft(remaining <= WARN_SECONDS ? Math.ceil(remaining) : null)
+        }, 1000)
+        return () => {
+            clearInterval(timer)
+            ACTIVITY_EVENTS.forEach((e) => window.removeEventListener(e, bump))
+        }
+    }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+    const stayIn = () => { writeActivity(Date.now()); setSecondsLeft(null) }
+    return { secondsLeft, stayIn }
+}
 
 const todayText = () => new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
 
@@ -21,7 +70,15 @@ function Logo({ compact, home = '/dashboard' }) {
 // It replaces the storefront header, footer and chat on admin pages.
 function AdminShell({ children }) {
     const { pathname } = useLocation()
+    const history = useHistory()
+    const dispatch = useDispatch()
     const { userInfo } = useSelector((state) => state.userLogin)
+    const { secondsLeft, stayIn } = useIdleSignOut(() => {
+        // The admin gate sends signed-out staff to the sign-in page with a link back
+        // to this page; the flag tells that page to explain why.
+        try { sessionStorage.setItem('staffSignedOutIdle', '1') } catch (e) { /* ignore */ }
+        dispatch(logout())
+    })
     const [menuOpen, setMenuOpen] = useState(false)
     const [isFullscreen, setIsFullscreen] = useState(Boolean(document.fullscreenElement))
 
@@ -93,9 +150,21 @@ function AdminShell({ children }) {
                 </header>
 
                 <main className={cn('min-h-0 flex-1 overflow-y-auto', !isCounter && 'px-4 py-6 sm:px-6 lg:px-8')}>
-                    {children}
+                    {/* A crash on one page leaves the menu working so staff can move on. */}
+                    <ErrorBoundary resetKey={pathname}>{children}</ErrorBoundary>
                 </main>
             </div>
+
+            <Modal show={secondsLeft !== null} onClose={stayIn} title="Are you still there?" size="sm">
+                <p className="text-sm text-slate-600">
+                    For security you'll be signed out in <strong className="text-slate-900">{secondsLeft} seconds</strong> because nothing has happened for a while.
+                    An open bill at the counter is kept.
+                </p>
+                <div className="mt-5 flex gap-2">
+                    <Button block variant="secondary" onClick={() => { dispatch(logout()); history.push('/staff') }}>Sign out now</Button>
+                    <Button block autoFocus onClick={stayIn}>Stay signed in</Button>
+                </div>
+            </Modal>
 
             {/* Phone and tablet menu */}
             {menuOpen && (

@@ -1,80 +1,60 @@
-import { HashRouter as Router, Route, Switch, Redirect } from 'react-router-dom'
+import React, { Suspense, lazy } from 'react'
+import { HashRouter as Router, Route, Switch, useLocation } from 'react-router-dom'
 import Header from './components/Header'
 import Footer from './components/Footer'
 import ChatAssistant from './components/ChatAssistant'
+import ErrorBoundary from './components/ErrorBoundary'
+import Loader from './components/Loader'
 import HomeScreen from './screens/HomeScreen'
 import ProductScreen from './screens/ProductScreen'
 import CartScreen from './screens/CartScreen'
 import LoginScreen from './screens/LoginScreen'
-import RegisterScreen from './screens/RegisterScreen'
-import ProfileScreen from './screens/ProfileScreen'
-import ShippingScreen from './screens/ShippingScreen'
-import PaymentScreen from './screens/PaymentScreen'
-import PlaceOrderScreen from './screens/PlaceOrderScreen'
-import OrderScreen from './screens/OrderScreen'
-import UserListScreen from './screens/UserListScreen'
-import UserEditScreen from './screens/UserEditScreen'
-import ProductListScreen from './screens/ProductListScreen'
-import ProductEditScreen from './screens/ProductEditScreen'
-import OrderListScreen from './screens/OrderListScreen'
-import TopReviewProductScreen from './screens/TopReviewProductScreen'
-import Contact from './screens/ContactScreen'
-import CompareScreen from './screens/CompareScreen'
-import PriceRangeScreen from './screens/PriceRangeScreen'
-import DashboardScreen from './screens/DashboardScreen'
-import OTPScreen from './screens/OTPScreen';
-import RegisterScreen2 from './screens/RegisterScreen2'
-import ResetPassword from './screens/ResetPassword';
-import AdminContactScreen from './screens/AdminContactScreen';
-import BrandScreen from './screens/BrandScreen'
-import CounterSaleScreen from './screens/inventory/CounterSaleScreen'
-import StockScreen from './screens/inventory/StockScreen'
-import ReceiveStockScreen from './screens/inventory/ReceiveStockScreen'
-import SalesScreen from './screens/inventory/SalesScreen'
 import withAdminGate from './inventory/AdminGate'
 
-import AdminShell from './admin_components/AdminShell'
+// Loaded only when someone opens them, so the shop's first visit stays small.
+const AdminArea = lazy(() => import('./AdminArea'))
+const StaffLoginScreen = lazy(() => import('./screens/StaffLoginScreen'))
+const RegisterScreen = lazy(() => import('./screens/RegisterScreen'))
+const RegisterScreen2 = lazy(() => import('./screens/RegisterScreen2'))
+const ResetPassword = lazy(() => import('./screens/ResetPassword'))
+const ProfileScreen = lazy(() => import('./screens/ProfileScreen'))
+const OTPScreen = lazy(() => import('./screens/OTPScreen'))
+const CompareScreen = lazy(() => import('./screens/CompareScreen'))
+const ShippingScreen = lazy(() => import('./screens/ShippingScreen'))
+const PaymentScreen = lazy(() => import('./screens/PaymentScreen'))
+const PlaceOrderScreen = lazy(() => import('./screens/PlaceOrderScreen'))
+const OrderScreen = lazy(() => import('./screens/OrderScreen'))
+const TopReviewProductScreen = lazy(() => import('./screens/TopReviewProductScreen'))
+const Contact = lazy(() => import('./screens/ContactScreen'))
+const PriceRangeScreen = lazy(() => import('./screens/PriceRangeScreen'))
+
+// A crash on one page shows a message with a way out; moving to another page clears it.
+function PageBoundary({ children, fullPage }) {
+  const { pathname } = useLocation()
+  return <ErrorBoundary resetKey={pathname} fullPage={fullPage}>{children}</ErrorBoundary>
+}
 
 // Every admin page lives inside the admin frame instead of the storefront header and footer.
 const ADMIN_PATHS = ['/admin', '/dashboard', '/brand']
 
-function AdminArea() {
-  return (
-    <AdminShell>
-      <Switch>
-        <Route path='/dashboard' component={DashboardScreen} />
-        <Route path='/admin/counter' component={CounterSaleScreen} />
-        <Route path='/admin/stock' component={StockScreen} />
-        <Route path='/admin/receive' component={ReceiveStockScreen} />
-        <Route path='/admin/sales' component={SalesScreen} />
-        <Route path='/admin/orderlist' component={OrderListScreen} />
-        <Route path='/admin/order/:id' component={OrderScreen} />
-        <Route path='/admin/productlist' component={ProductListScreen} />
-        <Route path='/admin/product/:id/edit' component={ProductEditScreen} />
-        <Route path='/brand' component={BrandScreen} />
-        <Route path='/admin/staff' component={UserListScreen} />
-        <Route path='/admin/customers' component={UserListScreen} />
-        <Redirect from='/admin/userlist' to='/admin/customers' />
-        <Route path='/admin/user/:id/edit' component={UserEditScreen} />
-        <Route path='/admin/contact' component={AdminContactScreen} />
-        <Redirect to='/dashboard' />
-      </Switch>
-    </AdminShell>
-  )
-}
-
 const AdminAreaGated = withAdminGate(AdminArea)
+
 
 function App() {
   return (
     <Router>
+      <PageBoundary fullPage>
+      <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><Loader /></div>}>
       <Switch>
+        <Route path='/staff' component={StaffLoginScreen} />
         <Route path={ADMIN_PATHS} component={AdminAreaGated} />
         <Route>
           <div className="flex min-h-screen flex-col">
             <Header />
 
             <main className="flex-1 py-8 sm:py-10">
+              <PageBoundary>
+              <Suspense fallback={<Loader />}>
               <Route path='/' component={HomeScreen} exact />
               <Route path='/login' component={LoginScreen} />
               <Route path='/register' component={RegisterScreen} />
@@ -92,12 +72,16 @@ function App() {
               <Route path='/topReviewProductScreen' component={TopReviewProductScreen} />
               <Route path='/contact' component={Contact} />
               <Route path='/priceRange' component={PriceRangeScreen} />
+              </Suspense>
+              </PageBoundary>
             </main>
             <Footer />
             <ChatAssistant />
           </div>
         </Route>
       </Switch>
+      </Suspense>
+      </PageBoundary>
     </Router>
   );
 }

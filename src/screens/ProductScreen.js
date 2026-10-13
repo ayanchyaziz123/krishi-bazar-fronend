@@ -8,10 +8,12 @@ import Rating from '../components/Rating'
 import Loader from '../components/Loader'
 import Message from '../components/Message'
 import Coupon from '../components/Coupon';
-import ProductChart from '../components/ProductChart';
 import { listProductDetails, createProductReview } from '../actions/productActions'
 import { PRODUCT_CREATE_REVIEW_RESET } from '../constants/productConstants'
 import { Container, Card, Button, Select, Textarea, Input, Field, Badge, Modal, cn, formatTk, finalPrice } from '../components/ui'
+
+// The price chart library is large, so it only loads when the chart is shown.
+const ProductChart = React.lazy(() => import('../components/ProductChart'));
 
 const baseURL = "/api/products/predict_history_price/";
 
@@ -237,7 +239,7 @@ function ProductScreen({ match, history }) {
                                     <div className="prose-content text-sm text-slate-600">{ReactHtmlParser(product.description)}</div>
                                 </Card>
                                 <Card className="p-6">
-                                    <ProductChart price_history={price_history} product_id={product._id} />
+                                    <React.Suspense fallback={<div className="h-48" />}><ProductChart price_history={price_history} product_id={product._id} /></React.Suspense>
                                 </Card>
                             </div>
 

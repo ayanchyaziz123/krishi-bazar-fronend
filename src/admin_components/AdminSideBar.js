@@ -62,7 +62,7 @@ function AdminSideBar({ compact, onNavigate }) {
 
     const logoutHandler = () => {
         dispatch(logout())
-        history.push('/login')
+        history.push('/staff')
     }
 
     const renderLink = ({ to, label, short, icon: Icon, also }) => (

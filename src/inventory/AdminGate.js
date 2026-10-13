@@ -19,7 +19,7 @@ export default function withAdminGate(Screen) {
         const here = location.pathname
 
         useEffect(() => {
-            if (!userInfo) history.push(`/login?redirect=${here}`)
+            if (!userInfo) history.push(`/staff?redirect=${here}`)
         }, [userInfo, history, here])
 
         if (!userInfo) return null
@@ -28,7 +28,7 @@ export default function withAdminGate(Screen) {
         if (!role) {
             const switchAccount = () => {
                 dispatch(logout())
-                history.push(`/login?redirect=${here}`)
+                history.push(`/staff?redirect=${here}`)
             }
             return (
                 <Container className="flex min-h-screen items-center justify-center bg-slate-50 py-10">
