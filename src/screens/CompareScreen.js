@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import Loader from '../components/Loader';
 import Message from '../components/Message';
 import ProductCompareChart from '../components/ProductCompareChart';
-import { Container, PageHeader, Card, Button, formatTk } from '../components/ui';
+import { Container, PageHeader, Card, Button, formatINR } from '../components/ui';
 
 const baseURL = "/api/products/all/";
 
@@ -72,7 +72,7 @@ function CompareScreen(props) {
                                     <div className="border-b border-slate-100 bg-slate-50/60 px-5 py-3 text-sm text-slate-500">{label}</div>
                                     {laptops.map((pr, i) => (
                                         <div key={i} className="border-b border-l border-slate-100 px-5 py-3 text-sm font-medium text-slate-900">
-                                            {pr ? (key === 'price' ? formatTk(pr[key]) : pr[key] || '—') : '—'}
+                                            {pr ? (key === 'price' ? formatINR(pr[key]) : pr[key] || '—') : '—'}
                                         </div>
                                     ))}
                                 </React.Fragment>

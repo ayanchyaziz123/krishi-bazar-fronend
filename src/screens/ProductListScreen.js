@@ -3,7 +3,7 @@ import axios from 'axios'
 import { useSelector } from 'react-redux'
 import { Plus, Pencil, Trash2, Search, ChevronLeft, ChevronRight } from 'lucide-react'
 import AdminLayout from '../admin_components/AdminLayout'
-import { Alert, Badge, Button, Card, Input, Modal, Select, Spinner, cn, formatTk } from '../components/ui'
+import { Alert, Badge, Button, Card, Input, Modal, Select, Spinner, StatusPill, formatINR, toast } from '../components/ui'
 import { useCategories } from '../components/categories'
 
 const errorText = (e) => (e.response && e.response.data && e.response.data.detail) || e.message
@@ -70,14 +70,14 @@ function ProductListScreen({ history, location }) {
 
     return (
         <AdminLayout
-            title="Products"
+            title="Items"
             subtitle="Everything sold in the shop and online."
-            action={<Button to="/admin/product/new"><Plus className="h-4 w-4" /> New product</Button>}
+            action={<Button to="/admin/product/new"><Plus className="h-4 w-4" /> New item</Button>}
         >
             <div className="mb-4 flex flex-col gap-2 lg:flex-row">
                 <div className="relative flex-1">
                     <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, category or counter code" className="pl-10" aria-label="Search products" />
+                    <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, category or counter code" className="pl-10" aria-label="Search items" />
                 </div>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:flex">
                     <Select value={filters.category} onChange={(e) => update({ category: e.target.value })} aria-label="Category" className="lg:!w-40">
@@ -104,7 +104,7 @@ function ProductListScreen({ history, location }) {
             {!data ? <Spinner /> : (
                 <Card className="overflow-hidden rounded-xl">
                     <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3 text-sm text-slate-600">
-                        <span>{data.count} {data.count === 1 ? 'product' : 'products'}{filtered ? ' match' : ''}</span>
+                        <span>{data.count} {data.count === 1 ? 'item' : 'items'}{filtered ? ' match' : ''}</span>
                         {filtered && (
                             <button type="button" className="font-semibold text-brand-700 hover:underline" onClick={() => { setSearch(''); history.replace({ search: '' }) }}>
                                 Clear filters
@@ -112,16 +112,17 @@ function ProductListScreen({ history, location }) {
                         )}
                     </div>
                     {data.products.length === 0 ? (
-                        <p className="px-5 py-12 text-center text-sm text-slate-500">No products match. Try another search or clear the filters.</p>
+                        <p className="px-5 py-12 text-center text-sm text-slate-500">No items match. Try another search or clear the filters.</p>
                     ) : (
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm">
                                 <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                     <tr>
-                                        <th className="px-5 py-2.5">Product</th>
+                                        <th className="px-5 py-2.5">Item</th>
                                         <th className="px-3 py-2.5">Category</th>
                                         <th className="px-3 py-2.5 text-right">Price</th>
-                                        <th className="px-3 py-2.5 text-right">Stock</th>
+                                        <th className="px-3 py-2.5 text-right">On hand</th>
+                                        <th className="px-3 py-2.5">Status</th>
                                         <th className="px-3 py-2.5">Sold in</th>
                                         <th className="px-5 py-2.5" />
                                     </tr>
@@ -144,15 +145,14 @@ function ProductListScreen({ history, location }) {
                                             </td>
                                             <td className="px-3 py-2.5 text-slate-600">{p.category}</td>
                                             <td className="px-3 py-2.5 text-right font-medium text-slate-900">
-                                                {formatTk(p.shop_price ?? p.price)}
+                                                {formatINR(p.shop_price ?? p.price)}
                                                 {p.online_price != null && Number(p.online_price) !== Number(p.shop_price) && (
-                                                    <span className="block text-xs font-normal text-slate-500">Online {formatTk(p.online_price)}</span>
+                                                    <span className="block text-xs font-normal text-slate-500">Online {formatINR(p.online_price)}</span>
                                                 )}
                                                 {p.is_offer && p.offer_percentage > 0 && <span className="block text-xs font-normal text-amber-700">{p.offer_percentage}% off</span>}
                                             </td>
-                                            <td className={cn('px-3 py-2.5 text-right', (p.stock_exact ?? p.countInStock) <= 0 ? 'font-semibold text-rose-600' : 'text-slate-700')}>
-                                                {p.stock_exact ?? p.countInStock}
-                                            </td>
+                                            <td className="px-3 py-2.5 text-right text-slate-700">{p.stock_exact ?? p.countInStock} <span className="text-xs text-slate-400">{p.unit === 'piece' ? 'pc' : p.unit}</span></td>
+                                            <td className="px-3 py-2.5"><StockStatus product={p} /></td>
                                             <td className="px-3 py-2.5"><SoldIn product={p} /></td>
                                             <td className="px-5 py-2.5 text-right">
                                                 <div className="inline-flex gap-1">
@@ -184,7 +184,7 @@ function ProductListScreen({ history, location }) {
 
             {deleting && (
                 <DeleteProduct product={deleting} auth={auth} onClose={() => setDeleting(null)}
-                    onDeleted={() => { setDeleting(null); setReload((n) => n + 1) }} />
+                    onDeleted={() => { toast.success(`${deleting.name} was deleted.`); setDeleting(null); setReload((n) => n + 1) }} />
             )}
         </AdminLayout>
     )
@@ -212,6 +212,13 @@ function DeleteProduct({ product, auth, onClose, onDeleted }) {
             </div>
         </Modal>
     )
+}
+
+function StockStatus({ product }) {
+    const stock = Number(product.stock_exact ?? product.countInStock) || 0
+    if (stock <= 0) return <StatusPill tone="red">Out of stock</StatusPill>
+    if (stock <= (product.reorder_level ?? 5)) return <StatusPill tone="amber">Low stock</StatusPill>
+    return <StatusPill tone="green">In stock</StatusPill>
 }
 
 // Where a product is sold: both channels, one of them, or neither.

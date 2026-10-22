@@ -43,7 +43,8 @@ function RegisterScreen2({ location, history }) {
                 localStorage.setItem('data_tkn', response.data);
                 setSuccess(true);
             }).catch(error => {
-                setError(error.response ? error.response.data : error.message);
+                const data = error.response && error.response.data
+                setError((data && data.detail) || (typeof data === 'string' ? data : error.message));
             }).finally(() => setLoadding(false))
         }
     }

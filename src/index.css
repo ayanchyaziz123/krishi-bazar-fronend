@@ -49,3 +49,163 @@ input[type="range"].range {
   .print-area, .print-area * { visibility: visible; }
   .print-area { position: absolute; left: 0; top: 0; width: 80mm; }
 }
+
+/* ------------------------------------------------------------------------------------
+   Admin themes. The admin frame carries .theme-dark when dark mode is on. Instead of a
+   dark version of every class, the colour variables Tailwind's classes read are swapped:
+   white surfaces become dark panels, dark text becomes light, and coloured tags get dim
+   backgrounds with brighter text. Buttons keep the store colour with dark text on top.
+   ------------------------------------------------------------------------------------ */
+:root {
+  /* Admin design tokens (light theme is the reference). */
+  --admin-bg: #f8fafc;
+  --admin-sidebar: #111827;
+}
+
+.theme-dark {
+  color-scheme: dark;
+  --dark-card: #14161c;
+  --admin-bg: #0b0d12;
+  --admin-sidebar: #0f1115;
+  --color-white: var(--dark-card);
+  --color-slate-50: #1a1d24;
+  --color-slate-100: #22262f;
+  --color-slate-200: #2b2f3a;
+  --color-slate-300: #3b404d;
+  --color-slate-400: #6b7280;
+  --color-slate-500: #8b93a3;
+  --color-slate-600: #a7aebb;
+  --color-slate-700: #c6cbd5;
+  --color-slate-800: #dde1e8;
+  --color-slate-900: #eef0f4;
+  --color-slate-950: #f7f8fa;
+  --color-brand-50: color-mix(in oklab, var(--brand-500) 13%, var(--dark-card));
+  --color-brand-100: color-mix(in oklab, var(--brand-500) 20%, var(--dark-card));
+  --color-brand-200: color-mix(in oklab, var(--brand-500) 32%, var(--dark-card));
+  --color-brand-600: var(--brand-400);
+  --color-brand-700: var(--brand-300);
+  --color-brand-800: var(--brand-200);
+  --color-brand-900: var(--brand-100);
+  --color-emerald-50: color-mix(in oklab, #10b981 13%, var(--dark-card));
+  --color-emerald-100: color-mix(in oklab, #10b981 20%, var(--dark-card));
+  --color-emerald-200: color-mix(in oklab, #10b981 32%, var(--dark-card));
+  --color-emerald-600: #34d399;
+  --color-emerald-700: #6ee7b7;
+  --color-emerald-800: #a7f3d0;
+  --color-emerald-900: #a7f3d0;
+  --color-green-50: color-mix(in oklab, #22c55e 13%, var(--dark-card));
+  --color-green-100: color-mix(in oklab, #22c55e 20%, var(--dark-card));
+  --color-green-200: color-mix(in oklab, #22c55e 32%, var(--dark-card));
+  --color-green-600: #4ade80;
+  --color-green-700: #86efac;
+  --color-green-800: #bbf7d0;
+  --color-green-900: #bbf7d0;
+  --color-amber-50: color-mix(in oklab, #f59e0b 13%, var(--dark-card));
+  --color-amber-100: color-mix(in oklab, #f59e0b 20%, var(--dark-card));
+  --color-amber-200: color-mix(in oklab, #f59e0b 32%, var(--dark-card));
+  --color-amber-600: #fbbf24;
+  --color-amber-700: #fcd34d;
+  --color-amber-800: #fde68a;
+  --color-amber-900: #fde68a;
+  --color-yellow-50: color-mix(in oklab, #eab308 13%, var(--dark-card));
+  --color-yellow-100: color-mix(in oklab, #eab308 20%, var(--dark-card));
+  --color-yellow-200: color-mix(in oklab, #eab308 32%, var(--dark-card));
+  --color-yellow-600: #facc15;
+  --color-yellow-700: #fde047;
+  --color-yellow-800: #fef08a;
+  --color-yellow-900: #fef08a;
+  --color-orange-50: color-mix(in oklab, #f97316 13%, var(--dark-card));
+  --color-orange-100: color-mix(in oklab, #f97316 20%, var(--dark-card));
+  --color-orange-200: color-mix(in oklab, #f97316 32%, var(--dark-card));
+  --color-orange-600: #fb923c;
+  --color-orange-700: #fdba74;
+  --color-orange-800: #fed7aa;
+  --color-orange-900: #fed7aa;
+  --color-rose-50: color-mix(in oklab, #f43f5e 13%, var(--dark-card));
+  --color-rose-100: color-mix(in oklab, #f43f5e 20%, var(--dark-card));
+  --color-rose-200: color-mix(in oklab, #f43f5e 32%, var(--dark-card));
+  --color-rose-600: #fb7185;
+  --color-rose-700: #fda4af;
+  --color-rose-800: #fecdd3;
+  --color-rose-900: #fecdd3;
+  --color-red-50: color-mix(in oklab, #ef4444 13%, var(--dark-card));
+  --color-red-100: color-mix(in oklab, #ef4444 20%, var(--dark-card));
+  --color-red-200: color-mix(in oklab, #ef4444 32%, var(--dark-card));
+  --color-red-600: #f87171;
+  --color-red-700: #fca5a5;
+  --color-red-800: #fecaca;
+  --color-red-900: #fecaca;
+  --color-sky-50: color-mix(in oklab, #0ea5e9 13%, var(--dark-card));
+  --color-sky-100: color-mix(in oklab, #0ea5e9 20%, var(--dark-card));
+  --color-sky-200: color-mix(in oklab, #0ea5e9 32%, var(--dark-card));
+  --color-sky-600: #38bdf8;
+  --color-sky-700: #7dd3fc;
+  --color-sky-800: #bae6fd;
+  --color-sky-900: #bae6fd;
+  --color-lime-50: color-mix(in oklab, #84cc16 13%, var(--dark-card));
+  --color-lime-100: color-mix(in oklab, #84cc16 20%, var(--dark-card));
+  --color-lime-200: color-mix(in oklab, #84cc16 32%, var(--dark-card));
+  --color-lime-600: #a3e635;
+  --color-lime-700: #bef264;
+  --color-lime-800: #d9f99d;
+  --color-lime-900: #d9f99d;
+  --color-violet-50: color-mix(in oklab, #8b5cf6 13%, var(--dark-card));
+  --color-violet-100: color-mix(in oklab, #8b5cf6 20%, var(--dark-card));
+  --color-violet-200: color-mix(in oklab, #8b5cf6 32%, var(--dark-card));
+  --color-violet-600: #a78bfa;
+  --color-violet-700: #c4b5fd;
+  --color-violet-800: #ddd6fe;
+  --color-violet-900: #ddd6fe;
+}
+
+/* The side menu is dark in both themes, so it keeps the normal colours. */
+.theme-dark .keep-colors {
+  --color-white: #ffffff;
+  --color-slate-100: #f1f5f9;
+  --color-slate-200: #e2e8f0;
+  --color-slate-950: #020617;
+  --color-slate-300: #cbd5e1;
+  --color-slate-400: #94a3b8;
+  --color-slate-500: #64748b;
+  --color-rose-300: #fda4af;
+  --color-brand-400: var(--brand-400);
+  --color-brand-500: var(--brand-500);
+}
+
+/* Charts draw their lines with fixed colours; quieten them on the dark background. */
+.theme-dark .recharts-cartesian-grid line { stroke: #2b2f3a; }
+.theme-dark .recharts-cartesian-axis-line { stroke: #2b2f3a; }
+.theme-dark .recharts-cartesian-axis-tick text { fill: #8b93a3; }
+.theme-dark .recharts-bar-rectangle path { stroke: var(--dark-card); }
+.theme-dark .recharts-tooltip-cursor { fill: #1a1d24; }
+
+/* The product description editor. */
+.theme-dark .ck.ck-toolbar, .theme-dark .ck.ck-editor__main > .ck-editor__editable {
+  background: var(--dark-card); color: #eef0f4; border-color: #2b2f3a;
+}
+.theme-dark .ck.ck-button { color: #c6cbd5; }
+.theme-dark .ck.ck-button:hover { background: #22262f; }
+
+/* ------------------------------------------------------------------------------------
+   Motion. Short and quiet, and switched off for people who ask for reduced motion.
+   ------------------------------------------------------------------------------------ */
+@keyframes kb-fade { from { opacity: 0 } to { opacity: 1 } }
+@keyframes kb-pop { from { opacity: 0; transform: translateY(4px) scale(.98) } to { opacity: 1; transform: none } }
+@keyframes kb-slide-up { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
+@keyframes kb-drawer { from { transform: translateX(-100%) } to { transform: none } }
+@keyframes kb-shimmer { from { background-position: 200% 0 } to { background-position: -200% 0 } }
+.anim-fade { animation: kb-fade .15s ease-out both }
+.anim-pop { animation: kb-pop .16s cubic-bezier(.2,.8,.2,1) both }
+.anim-slide-up { animation: kb-slide-up .2s cubic-bezier(.2,.8,.2,1) both }
+.anim-drawer { animation: kb-drawer .2s cubic-bezier(.2,.8,.2,1) both }
+.skeleton {
+  background: linear-gradient(90deg, var(--color-slate-100) 25%, var(--color-slate-50) 50%, var(--color-slate-100) 75%);
+  background-size: 200% 100%;
+  animation: kb-shimmer 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+
+/* Numbers in figures and tables line up in columns. */
+.figure { font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }

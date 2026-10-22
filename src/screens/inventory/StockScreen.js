@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Search, SlidersHorizontal, History, PackagePlus, AlertTriangle, CalendarClock, Coins, Pencil } from 'lucide-react'
 import AdminLayout from '../../admin_components/AdminLayout'
-import { Alert, Badge, Button, Card, Field, Input, Modal, Select, Spinner, Table, Td, Th, cn, formatTk } from '../../components/ui'
+import { Alert, Badge, Button, Card, Field, Input, Modal, Select, Spinner, Table, Td, Th, cn, formatINR } from '../../components/ui'
 import { useAdminGuard, inventoryApi, errorText, formatDateTime } from '../../inventory/api'
 
 const UNIT_SUGGESTIONS = ['piece', 'kg', '500 g pack', '250 g pack', '100 g pack', 'jar', 'packet', 'litre', 'dozen', 'bundle']
@@ -61,7 +61,7 @@ function StockScreen({ history }) {
             {loading && !summary ? <Spinner /> : summary && (
                 <>
                     <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                        <StatCard icon={Coins} label="Stock value at buying price" value={formatTk(summary.stock_value)}
+                        <StatCard icon={Coins} label="Stock value at buying price" value={formatINR(summary.stock_value)}
                             note={summary.missing_cost_price ? `${summary.missing_cost_price} items have no buying price` : 'All items priced'}
                             onClick={summary.missing_cost_price ? () => setFilter('nocost') : undefined} />
                         <StatCard icon={AlertTriangle} label="Low or out of stock" value={summary.low_stock.length}
@@ -70,7 +70,7 @@ function StockScreen({ history }) {
                             tone={summary.expiring.length ? 'red' : 'slate'} onClick={() => setFilter('expiring')} note="Batches still on the shelf" />
                         {/* Money owed is only sent to roles that handle sales. */}
                         {summary.dues && (
-                            <StatCard icon={Coins} label="Customer dues" value={formatTk(summary.dues.total)}
+                            <StatCard icon={Coins} label="Customer dues" value={formatINR(summary.dues.total)}
                                 note={`${summary.dues.count} unpaid ${summary.dues.count === 1 ? 'bill' : 'bills'}`} onClick={() => history.push('/admin/sales')} />
                         )}
                     </div>
@@ -144,16 +144,16 @@ function StockScreen({ history }) {
                                 <Td className="text-right">
                                     {cost === null || cost === undefined ? <Badge variant="amber">Not set</Badge> : mixed ? (
                                         <span title="Batches on the shelf were bought at different prices. Each sale uses its own batch's price.">
-                                            avg {formatTk(cost)}
-                                            <span className="block text-xs text-slate-500">{formatTk(p.cost_min)}–{formatTk(p.cost_max)}</span>
+                                            avg {formatINR(cost)}
+                                            <span className="block text-xs text-slate-500">{formatINR(p.cost_min)}–{formatINR(p.cost_max)}</span>
                                         </span>
-                                    ) : formatTk(cost)}
+                                    ) : formatINR(cost)}
                                     {margin !== null && <div className={cn('text-xs', margin < 0 ? 'font-semibold text-rose-600' : 'text-slate-500')}>{margin}% margin{mixed ? ' on avg' : ''}</div>}
                                 </Td>
                                 <Td className="text-right">
-                                    {formatTk(p.selling_price)}
-                                    {p.is_offer && <div className="text-xs text-slate-500">{p.offer_percentage}% off {formatTk(p.price)}</div>}
-                                    {p.online_price !== null && p.online_price !== undefined && <div className="text-xs text-slate-500">Online {formatTk(p.online_price)}</div>}
+                                    {formatINR(p.selling_price)}
+                                    {p.is_offer && <div className="text-xs text-slate-500">{p.offer_percentage}% off {formatINR(p.price)}</div>}
+                                    {p.online_price !== null && p.online_price !== undefined && <div className="text-xs text-slate-500">Online {formatINR(p.online_price)}</div>}
                                 </Td>
                                 <Td className="text-right">
                                     <div className="flex justify-end gap-1">
@@ -179,22 +179,41 @@ function StockScreen({ history }) {
 }
 
 function StatCard({ icon: Icon, label, value, note, tone = 'slate', onClick }) {
-    const tones = { slate: 'bg-slate-100 text-slate-600', amber: 'bg-amber-100 text-amber-700', red: 'bg-rose-100 text-rose-700' }
+    const tones = { slate: 'bg-slate-100 text-slate-500', amber: 'bg-amber-50 text-amber-600', red: 'bg-rose-50 text-rose-600' }
+    const Tag = onClick ? 'button' : 'div'
     return (
-        <Card className={cn('p-4', onClick && 'cursor-pointer transition hover:border-brand-300')} onClick={onClick}>
-            <div className="flex items-center gap-3">
-                <span className={cn('flex h-9 w-9 items-center justify-center rounded-xl', tones[tone])}><Icon className="h-4 w-4" /></span>
-                <p className="text-sm text-slate-500">{label}</p>
-            </div>
-            <p className="mt-2 text-2xl font-bold text-slate-900">{value}</p>
-            {note && <p className="text-xs text-slate-500">{note}</p>}
+        <Card className={cn('p-0', onClick && 'transition-colors hover:border-slate-300')}>
+            <Tag type={onClick ? 'button' : undefined} onClick={onClick} className="block w-full p-4 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
+                <div className="flex items-center justify-between gap-2">
+                    <p className="text-[13px] font-medium text-slate-500">{label}</p>
+                    <span className={cn('flex h-7 w-7 items-center justify-center rounded-md', tones[tone])}><Icon className="h-3.5 w-3.5" /></span>
+                </div>
+                <p className="figure mt-2 text-[26px] font-semibold leading-tight text-slate-900">{value}</p>
+                {note && <p className="mt-1 text-xs text-slate-500">{note}</p>}
+            </Tag>
         </Card>
+    )
+}
+
+// The unit beside a number box, e.g. "kg".
+function WithUnit({ unit, children }) {
+    return (
+        <div className="relative">
+            {children}
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">{unit}</span>
+        </div>
     )
 }
 
 function EditModal({ api, product, onClose, onSaved }) {
     const [unit, setUnit] = useState(product.unit)
+    const [loose, setLoose] = useState(Boolean(product.sold_by_weight))
     const [cost, setCost] = useState(product.cost_price === null ? '' : String(product.cost_price))
+    // Work the buying price out from a bill: "25.4 kg for ₹2,286" is ₹90 per kg.
+    const [fromBill, setFromBill] = useState(false)
+    const [billQty, setBillQty] = useState('')
+    const [billTotal, setBillTotal] = useState('')
+    const worked = Number(billQty) > 0 && billTotal !== '' ? Math.round((Number(billTotal) / Number(billQty)) * 1000) / 1000 : null
     const [reorder, setReorder] = useState(String(product.reorder_level))
     const [error, setError] = useState('')
     const [saving, setSaving] = useState(false)
@@ -202,7 +221,7 @@ function EditModal({ api, product, onClose, onSaved }) {
     const save = (e) => {
         e.preventDefault()
         setSaving(true)
-        api.patch(`products/${product._id}/`, { unit, cost_price: cost, reorder_level: reorder })
+        api.patch(`products/${product._id}/`, { unit, sold_by_weight: loose, cost_price: fromBill && worked !== null ? worked : cost, reorder_level: reorder })
             .then((p) => { onSaved(p); onClose() })
             .catch((err) => { setError(errorText(err)); setSaving(false) })
     }
@@ -210,17 +229,38 @@ function EditModal({ api, product, onClose, onSaved }) {
     return (
         <Modal show onClose={onClose} title={`Edit ${product.name}`}>
             <form onSubmit={save} className="space-y-4">
-                <Field label="Sold per" id="unit" hint="For loose items sold by weight use kg. Turn on 'Sold loose by weight' on the product page to allow 1.5, 0.25 and so on.">
+                <Field label="Sold per" id="unit" hint="For loose items sold by weight use kg (or g, litre).">
                     <Input id="unit" list="unit-suggestions" value={unit} onChange={(e) => setUnit(e.target.value)} required />
                     <datalist id="unit-suggestions">{UNIT_SUGGESTIONS.map((u) => <option key={u} value={u} />)}</datalist>
                 </Field>
-                <Field label="Last buying price per unit" id="cost" hint="Updated each time you receive stock. Used for older stock with no batch; each batch keeps its own price.">
-                    <Input id="cost" type="number" min="0" step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} />
+                <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-slate-200 p-3 text-sm">
+                    <input type="checkbox" checked={loose} onChange={(e) => setLoose(e.target.checked)} className="mt-0.5 accent-brand-600" />
+                    <span>
+                        <span className="block font-semibold text-slate-900">Sold loose by weight</span>
+                        <span className="block text-xs text-slate-500">Stock, sales and deliveries can be part units, like 1.5 or 0.25 {unit || 'kg'}. Online it sells in steps of 0.5.</span>
+                    </span>
+                </label>
+                <Field label={`Last buying price per ${unit || 'unit'}`} id="cost" hint="Updated each time you receive stock. Used for older stock with no batch; each batch keeps its own price.">
+                    {fromBill ? (
+                        <div className="space-y-2 rounded-xl bg-slate-50 p-3">
+                            <div className="grid grid-cols-2 gap-2">
+                                <WithUnit unit={unit}><Input type="number" min="0" step="0.001" inputMode="decimal" value={billQty} onChange={(e) => setBillQty(e.target.value)} placeholder="Bought" aria-label={`How much was bought (${unit})`} className="pr-10" /></WithUnit>
+                                <Input type="number" min="0" step="0.01" inputMode="decimal" value={billTotal} onChange={(e) => setBillTotal(e.target.value)} placeholder="₹ paid in total" aria-label="Total paid" />
+                            </div>
+                            <p className="text-sm text-slate-700">{worked !== null ? <>= <strong>{formatINR(worked)}</strong> per {unit || 'unit'}</> : 'Enter how much was bought and the total paid.'}</p>
+                            <button type="button" onClick={() => setFromBill(false)} className="text-xs font-semibold text-blue-600">Type the price instead</button>
+                        </div>
+                    ) : (
+                        <>
+                            <WithUnit unit={`/ ${unit || 'unit'}`}><Input id="cost" type="number" min="0" step="0.001" value={cost} onChange={(e) => setCost(e.target.value)} className="pr-14" /></WithUnit>
+                            <button type="button" onClick={() => setFromBill(true)} className="mt-1.5 text-xs font-semibold text-blue-600">Work it out from a bill total</button>
+                        </>
+                    )}
                 </Field>
                 <Field label="Warn when stock falls to" id="reorder">
                     <Input id="reorder" type="number" min="0" step="1" value={reorder} onChange={(e) => setReorder(e.target.value)} required />
                 </Field>
-                <p className="text-xs text-slate-500">Change the selling price, photos and description on the Products page.</p>
+                <p className="text-xs text-slate-500">Change the selling price, photos and description on the Items page.</p>
                 {error && <Alert variant="danger">{error}</Alert>}
                 <Button type="submit" block disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
             </form>
@@ -259,8 +299,21 @@ function AdjustModal({ api, product, onClose, onSaved }) {
                         {Object.entries(ADJUST_REASONS).map(([value, r]) => <option key={value} value={value}>{r.label}</option>)}
                     </Select>
                 </Field>
-                <Field label={`${info.qtyLabel} (${product.unit})`} id="qty">
-                    <Input id="qty" type="number" min="0" step={product.sold_by_weight ? '0.001' : '1'} value={qty} onChange={(e) => setQty(e.target.value)} required />
+                <Field label={info.qtyLabel} id="qty" hint={product.sold_by_weight ? `Part units are fine: 0.75 ${product.unit} is 750 g.` : undefined}>
+                    <WithUnit unit={product.unit}>
+                        <Input id="qty" type="number" min="0" step={product.sold_by_weight ? '0.001' : '1'} inputMode={product.sold_by_weight ? 'decimal' : 'numeric'}
+                            value={qty} onChange={(e) => setQty(e.target.value)} required className="pr-12" />
+                    </WithUnit>
+                    {product.sold_by_weight && reason !== 'correction' && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                            {[0.25, 0.5, 1, 2].map((w) => (
+                                <button key={w} type="button" onClick={() => setQty(String(w))}
+                                    className="h-7 rounded-md px-2 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 hover:ring-slate-300">
+                                    {(product.unit || 'kg').toLowerCase() === 'kg' && w < 1 ? `${w * 1000} g` : `${w} ${product.unit}`}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </Field>
                 <Field label="Note" id="note">
                     <Input id="note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional" />
@@ -299,7 +352,7 @@ function HistoryModal({ api, product, onClose }) {
                                 <div className="min-w-0">
                                     <p className="font-medium text-slate-900">{b.batch_no ? `Batch ${b.batch_no}` : `Delivery #${b.delivery}`}</p>
                                     <p className="text-xs text-slate-500">
-                                        Received {new Date(`${b.received_on}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}{b.supplier ? ` from ${b.supplier}` : ''} · {formatTk(b.unit_cost)} each
+                                        Received {new Date(`${b.received_on}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}{b.supplier ? ` from ${b.supplier}` : ''} · {formatINR(b.unit_cost)} each
                                     </p>
                                 </div>
                                 <div className="shrink-0 text-right">

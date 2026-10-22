@@ -1,7 +1,7 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
-import { Badge, formatTk } from './ui'
+import { Badge, formatINR } from './ui'
 
 // One hero slide used by the offer and top-rated carousels.
 function OfferSlide({ product, label = 'Special offer' }) {
@@ -13,8 +13,8 @@ function OfferSlide({ product, label = 'Special offer' }) {
                 <Badge variant="amber" className="mb-4">{label}{hasOffer ? ` · ${product.offer_percentage}% off` : ''}</Badge>
                 <h2 className="text-2xl font-bold leading-tight tracking-tight text-white sm:text-4xl">{product.name}</h2>
                 <div className="mt-4 flex items-baseline gap-3">
-                    <span className="text-2xl font-bold text-white">{formatTk(hasOffer ? offerPrice : product.price)}</span>
-                    {hasOffer && <span className="text-lg text-slate-400 line-through">{formatTk(product.price)}</span>}
+                    <span className="text-2xl font-bold text-white">{formatINR(hasOffer ? offerPrice : product.price)}</span>
+                    {hasOffer && <span className="text-lg text-slate-400 line-through">{formatINR(product.price)}</span>}
                 </div>
                 <span className="mt-6 inline-flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-slate-900 transition group-hover:bg-slate-100">
                     Shop now <ArrowRight className="h-4 w-4" />

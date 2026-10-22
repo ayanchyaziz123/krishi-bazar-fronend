@@ -1,87 +1,124 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
-import { ResponsiveContainer, BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip } from 'recharts'
+import { ResponsiveContainer, BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from 'recharts'
 import {
-    Store, PackagePlus, Package, ShoppingCart, TrendingUp, TrendingDown, Minus,
-    AlertTriangle, PackageX, CalendarClock, HandCoins, Truck, ChevronRight,
+    Store, PackagePlus, Package, ShoppingCart, Wallet, Receipt, Calculator, TrendingUp,
+    AlertTriangle, PackageX, CalendarClock, HandCoins, Truck, ChevronRight, CheckCircle2, BarChart3, CreditCard, Inbox,
 } from 'lucide-react'
-import { Alert, Card, Spinner, cn, formatTk } from '../components/ui'
-import { inventoryApi, errorText, formatTime } from '../inventory/api'
+import { Alert, Badge, Card, EmptyState, Input, Skeleton, cn, formatINR } from '../components/ui'
+import { inventoryApi, errorText, formatTime, todayInDhaka } from '../inventory/api'
+import { useStoreBrand } from '../components/storeBrand'
+import KpiCard from '../admin_components/KpiCard'
+import AIInsights from '../admin_components/AIInsights'
 
-// Validated pair (light surface): shop green and online blue.
+// Shop counter vs online. A validated pair for the light surface.
 const SERIES = [
     { key: 'shop', label: 'Shop counter', color: '#059669' },
-    { key: 'online', label: 'Online', color: '#0284c7' },
+    { key: 'online', label: 'Online', color: '#2563eb' },
 ]
 
-const hourLabel = (h) => `${h % 12 === 0 ? 12 : h % 12}${h < 12 ? 'am' : 'pm'}`
-
-function greeting() {
-    const h = new Date().getHours()
-    return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
+// Each payment type keeps the same colour everywhere (colour follows the method, not its rank).
+const PAYMENT_COLOURS = {
+    Cash: '#059669', UPI: '#2563eb', Card: '#d97706', bKash: '#db2777', Nagad: '#7c3aed',
+    'Due (pay later)': '#0891b2', 'Online orders': '#64748b',
 }
+const paymentColour = (method) => PAYMENT_COLOURS[method] || '#94a3b8'
 
-// Home: today at a glance, compared with the same day last week.
+const hourLabel = (h) => `${h % 12 === 0 ? 12 : h % 12}${h < 12 ? 'am' : 'pm'}`
+const longDate = (iso) => new Date(`${iso}T00:00:00`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+
+// Business overview: one day's sales, stock alerts and recent activity, compared with
+// the same weekday a week earlier. Every figure comes from /api/inventory/home/.
 function DashboardScreen() {
     const { userInfo } = useSelector((state) => state.userLogin)
     const api = useMemo(() => inventoryApi(userInfo), [userInfo])
+    const store = useStoreBrand()
+    const [day, setDay] = useState(todayInDhaka())
     const [data, setData] = useState(null)
+    const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
 
     useEffect(() => {
-        api.get('home/').then(setData).catch((e) => setError(errorText(e)))
-    }, [api])
+        setLoading(true)
+        api.get(`home/?date=${day}`)
+            .then((res) => { setData(res); setError('') })
+            .catch((e) => setError(errorText(e)))
+            .finally(() => setLoading(false))
+    }, [api, day])
 
-    const weekday = new Date().toLocaleDateString('en-GB', { weekday: 'long' })
-    const firstName = ((userInfo && userInfo.name) || '').split(' ')[0]
+    const isToday = day === todayInDhaka()
+    const weekday = new Date(`${day}T00:00:00`).toLocaleDateString('en-GB', { weekday: 'long' })
+    const compare = `vs last ${weekday}`
+    const t = data && data.today
+    const lw = data && data.last_week
+    const profitHasNoCosts = t && t.shop_profit > 0 && t.shop_profit === t.shop_total
 
     return (
-        <div className="mx-auto w-full max-w-7xl">
-            <div className="mb-6">
-                <h1 className="text-2xl font-bold tracking-tight text-slate-900">{greeting()}{firstName ? `, ${firstName}` : ''}</h1>
-                <p className="mt-0.5 text-sm text-slate-500">Here is how Krishi Bazar is doing today, compared with last {weekday}.</p>
+        <div className="mx-auto w-full max-w-7xl space-y-6">
+            {/* Page header */}
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                    <h1 className="text-[22px] font-semibold tracking-tight text-slate-900">Business overview</h1>
+                    <p className="mt-1 text-sm text-slate-500">Monitor your sales, inventory and business performance.</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                    <label className="flex items-center gap-2">
+                        <span className="sr-only">Reporting day</span>
+                        <Input type="date" value={day} max={todayInDhaka()} onChange={(e) => e.target.value && setDay(e.target.value)} className="!h-9 !w-40" aria-label="Reporting day" />
+                    </label>
+                    {!isToday && (
+                        <button type="button" onClick={() => setDay(todayInDhaka())} className="h-9 rounded-lg px-2.5 font-medium text-brand-700 hover:bg-brand-50">Today</button>
+                    )}
+                </div>
             </div>
+            <p className="-mt-3 text-xs text-slate-500">{store.name}{store.location ? `, ${store.location}` : ''} · showing {isToday ? 'today, ' : ''}{longDate(day)}. Changes compare with the same day a week earlier.</p>
 
             <QuickActions />
 
-            {error ? <Alert variant="danger" className="mt-6">{error}</Alert> : !data ? <Spinner /> : (
-                <>
-                    <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                        <Kpi label="Net sales" value={formatTk(data.today.net_sales)} now={data.today.net_sales} before={data.last_week.net_sales} weekday={weekday}
-                            note={`${formatTk(data.today.shop_total)} shop · ${formatTk(data.today.online_total)} online`} />
-                        <Kpi label="Transactions" value={data.today.transactions} now={data.today.transactions} before={data.last_week.transactions} weekday={weekday}
-                            note={`${data.today.shop_count} at the counter · ${data.today.online_count} online`} />
-                        <Kpi label="Average sale" value={formatTk(data.today.average_sale)} now={data.today.average_sale} before={data.last_week.average_sale} weekday={weekday} />
-                        <Kpi label="Counter profit" value={formatTk(data.today.profit)} now={data.today.profit} before={data.last_week.profit} weekday={weekday}
-                            note={data.today.profit > 0 && data.today.profit === data.today.shop_total
-                                ? 'Buying prices are missing, so this equals sales. Set them on the Stock page.'
-                                : 'Counter sales, at buying price'} />
-                    </div>
+            {error && <Alert variant="danger">{error}</Alert>}
 
-                    <div className="mt-6 grid gap-6 xl:grid-cols-3">
-                        <SalesByHour hourly={data.hourly} />
-                        <Payments payments={data.payments} total={data.today.net_sales} />
-                    </div>
+            {/* Headline figures */}
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <KpiCard label="Net sales" icon={Wallet} loading={loading && !data} value={t && formatINR(t.net_sales)}
+                    now={t && t.net_sales} before={lw && lw.net_sales} compareLabel={compare}
+                    note={t && `${formatINR(t.shop_total)} shop · ${formatINR(t.online_total)} online`} />
+                <KpiCard label="Transactions" icon={Receipt} loading={loading && !data} value={t && t.transactions.toLocaleString('en-US')}
+                    now={t && t.transactions} before={lw && lw.transactions} compareLabel={compare}
+                    note={t && `${t.shop_count} at the counter · ${t.online_count} online`} />
+                <KpiCard label="Average sale" icon={Calculator} loading={loading && !data} value={t && formatINR(t.average_sale)}
+                    now={t && t.average_sale} before={lw && lw.average_sale} compareLabel={compare} />
+                <KpiCard label="Profit" icon={TrendingUp} loading={loading && !data} value={t && formatINR(t.profit)}
+                    now={t && t.profit} before={lw && lw.profit} compareLabel={compare}
+                    note={profitHasNoCosts ? 'Buying prices are missing, so this equals sales.' : t && `${formatINR(t.shop_profit)} counter · ${formatINR(t.online_profit)} online`} />
+            </div>
 
-                    <div className="mt-6 grid gap-6 xl:grid-cols-3">
-                        <Recent recent={data.recent} />
-                        <div className="space-y-6">
-                            <Alerts alerts={data.alerts} />
-                            <TopItems items={data.top_items} />
-                        </div>
-                    </div>
-                </>
-            )}
+            {/* Analytics */}
+            <div className="grid gap-6 xl:grid-cols-3">
+                <SalesByHour hourly={data && data.hourly} loading={loading && !data} />
+                <PaymentTypes payments={data && data.payments} total={t && t.net_sales} loading={loading && !data} />
+            </div>
+
+            <div className="grid gap-6 xl:grid-cols-3">
+                <RecentSales recent={data && data.recent} loading={loading && !data} />
+                <div className="space-y-6">
+                    <NeedsAttention alerts={data && data.alerts} loading={loading && !data} />
+                    <TopItems items={data && data.top_items} loading={loading && !data} isToday={isToday} />
+                    <AIInsights />
+                </div>
+            </div>
         </div>
     )
 }
 
-function Panel({ title, action, className, children }) {
+function Panel({ title, subtitle, action, className, children }) {
     return (
-        <Card className={cn('rounded-xl', className)}>
-            <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-3.5">
-                <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
+        <Card className={cn('overflow-hidden', className)}>
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200/70 px-4 py-3">
+                <div>
+                    <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
+                    {subtitle && <p className="text-xs text-slate-500">{subtitle}</p>}
+                </div>
                 {action}
             </div>
             {children}
@@ -91,104 +128,86 @@ function Panel({ title, action, className, children }) {
 
 function QuickActions() {
     const actions = [
-        { to: '/admin/counter', label: 'New sale', icon: Store, primary: true },
-        { to: '/admin/receive', label: 'Receive stock', icon: PackagePlus },
-        { to: '/admin/productlist', label: 'Products', icon: Package },
-        { to: '/admin/orderlist', label: 'Online orders', icon: ShoppingCart },
+        { to: '/admin/counter', label: 'New sale', hint: 'Open the counter', icon: Store, primary: true },
+        { to: '/admin/receive', label: 'Receive stock', hint: 'Record a delivery', icon: PackagePlus },
+        { to: '/admin/productlist', label: 'Items', hint: 'Prices and details', icon: Package },
+        { to: '/admin/orderlist', label: 'Online orders', hint: 'Check and deliver', icon: ShoppingCart },
     ]
     return (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            {actions.map(({ to, label, icon: Icon, primary }) => (
+        <div className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 lg:grid-cols-4">
+            {actions.map(({ to, label, hint, icon: Icon, primary }) => (
                 <Link key={to} to={to}
-                    className={cn('flex items-center gap-3 rounded-xl px-4 py-4 text-sm font-semibold shadow-sm transition',
-                        primary ? 'bg-brand-600 text-white hover:bg-brand-700' : 'border border-slate-200 bg-white text-slate-800 hover:border-slate-300 hover:bg-slate-50')}>
-                    <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-lg', primary ? 'bg-white/15' : 'bg-slate-100 text-slate-700')}>
-                        <Icon className="h-5 w-5" />
+                    className={cn('group flex items-center gap-3 rounded-xl border px-3.5 py-3 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500',
+                        primary ? 'border-brand-600 bg-brand-600 text-white hover:bg-brand-700' : 'border-slate-200 bg-white text-slate-900 shadow-xs hover:border-slate-300 hover:bg-slate-50')}>
+                    <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', primary ? 'bg-white/15' : 'bg-slate-100 text-slate-600')}>
+                        <Icon className="h-[18px] w-[18px]" />
                     </span>
-                    {label}
+                    <span className="min-w-0">
+                        <span className="block truncate text-sm font-semibold">{label}</span>
+                        <span className={cn('block truncate text-xs', primary ? 'text-white/75' : 'text-slate-500')}>{hint}</span>
+                    </span>
+                    <ChevronRight className={cn('ml-auto h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5', primary ? 'text-white/70' : 'text-slate-300')} />
                 </Link>
             ))}
         </div>
     )
 }
 
-// One headline number with its change from the same day last week.
-function Kpi({ label, value, now, before, weekday, note }) {
-    let delta
-    if (!before && !now) delta = { text: `No sales last ${weekday} either`, tone: 'text-slate-500', Icon: Minus }
-    else if (!before) delta = { text: `None last ${weekday}`, tone: 'text-slate-500', Icon: Minus }
-    else {
-        const pct = Math.round(((now - before) / before) * 100)
-        delta = pct > 0 ? { text: `${pct}% vs last ${weekday}`, tone: 'text-emerald-700', Icon: TrendingUp }
-            : pct < 0 ? { text: `${-pct}% vs last ${weekday}`, tone: 'text-rose-700', Icon: TrendingDown }
-                : { text: `Same as last ${weekday}`, tone: 'text-slate-500', Icon: Minus }
-    }
-    const DeltaIcon = delta.Icon
-    return (
-        <Card className="rounded-xl p-5">
-            <p className="text-sm font-medium text-slate-500">{label}</p>
-            <p className="mt-2 text-3xl font-bold tracking-tight text-slate-900">{value}</p>
-            <p className={cn('mt-2 flex items-center gap-1 text-xs font-semibold', delta.tone)}>
-                <DeltaIcon className="h-3.5 w-3.5" /> {delta.text}
-            </p>
-            {note && <p className="mt-1 text-xs text-slate-500">{note}</p>}
-        </Card>
-    )
-}
-
-function SalesByHour({ hourly }) {
+function SalesByHour({ hourly, loading }) {
     const [asTable, setAsTable] = useState(false)
-    // Opening hours by default, widened if anything sold earlier or later.
-    const sold = hourly.filter((h) => h.shop + h.online > 0).map((h) => h.hour)
+    const sold = (hourly || []).filter((h) => h.shop + h.online > 0).map((h) => h.hour)
     const from = Math.min(8, ...sold)
     const to = Math.max(21, ...sold)
-    const rows = hourly.slice(from, to + 1).map((h) => ({ ...h, label: hourLabel(h.hour) }))
-    const empty = sold.length === 0
+    const rows = (hourly || []).slice(from, to + 1).map((h) => ({ ...h, label: hourLabel(h.hour) }))
+    const empty = !loading && sold.length === 0
 
     return (
-        <Panel title="Sales by hour" className="xl:col-span-2"
-            action={!empty && (
-                <button type="button" onClick={() => setAsTable((v) => !v)} className="text-xs font-semibold text-brand-700 hover:underline">
-                    {asTable ? 'Show chart' : 'Show table'}
-                </button>
-            )}>
-            <div className="px-5 pt-4">
-                <div className="flex gap-4 text-xs text-slate-600">
-                    {SERIES.map((s) => (
-                        <span key={s.key} className="flex items-center gap-1.5">
-                            <span className="h-2.5 w-2.5 rounded-sm" style={{ background: s.color }} /> {s.label}
-                        </span>
+        <Panel title="Sales by hour" subtitle="Shop counter and online, by the hour the sale was made" className="xl:col-span-2"
+            action={!empty && !loading && (
+                <div className="flex rounded-lg bg-slate-100 p-0.5 text-xs font-medium">
+                    {[['Chart', false], ['Table', true]].map(([label, value]) => (
+                        <button key={label} type="button" onClick={() => setAsTable(value)} aria-pressed={asTable === value}
+                            className={cn('rounded-md px-2.5 py-1 transition-colors', asTable === value ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-900')}>{label}</button>
                     ))}
                 </div>
-            </div>
-            {empty ? (
-                <p className="px-5 py-16 text-center text-sm text-slate-500">No sales yet today. They appear here as soon as the first bill is rung up.</p>
+            )}>
+            {loading ? (
+                <div className="p-4"><Skeleton className="h-64 w-full" /></div>
+            ) : empty ? (
+                <EmptyState icon={BarChart3} title="No sales on this day yet" compact>Sales appear here by the hour as soon as the first bill is rung up.</EmptyState>
             ) : asTable ? (
-                <div className="max-h-72 overflow-y-auto px-5 py-3">
-                    <table className="w-full text-sm">
-                        <thead><tr className="text-left text-xs text-slate-500"><th className="py-1.5 font-medium">Hour</th><th className="font-medium text-right">Shop</th><th className="font-medium text-right">Online</th><th className="font-medium text-right">Total</th></tr></thead>
+                <div className="max-h-72 overflow-y-auto px-4 py-2">
+                    <table className="figure w-full text-sm">
+                        <thead><tr className="text-left text-xs text-slate-500"><th className="py-2 font-medium">Hour</th><th className="text-right font-medium">Shop</th><th className="text-right font-medium">Online</th><th className="text-right font-medium">Total</th></tr></thead>
                         <tbody className="divide-y divide-slate-100">
                             {rows.filter((r) => r.shop + r.online > 0).map((r) => (
-                                <tr key={r.hour}><td className="py-1.5 text-slate-700">{r.label}</td><td className="text-right">{formatTk(r.shop)}</td><td className="text-right">{formatTk(r.online)}</td><td className="text-right font-semibold">{formatTk(r.shop + r.online)}</td></tr>
+                                <tr key={r.hour}><td className="py-2 text-slate-700">{r.label}</td><td className="text-right">{formatINR(r.shop)}</td><td className="text-right">{formatINR(r.online)}</td><td className="text-right font-semibold text-slate-900">{formatINR(r.shop + r.online)}</td></tr>
                             ))}
                         </tbody>
                     </table>
                 </div>
             ) : (
-                <div className="h-72 px-2 pb-3 pt-2">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={rows} margin={{ top: 8, right: 12, bottom: 0, left: 4 }} barCategoryGap="25%">
-                            <CartesianGrid stroke="#e5e7eb" vertical={false} />
-                            <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={{ stroke: '#e5e7eb' }} interval="preserveStartEnd" />
-                            <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false} width={56}
-                                tickFormatter={(v) => (v >= 1000 ? `৳${Math.round(v / 100) / 10}k` : `৳${v}`)} />
-                            <Tooltip cursor={{ fill: '#f1f5f9' }} content={<HourTooltip />} />
-                            {/* The white stroke is the 2px surface gap between stacked segments. */}
-                            <Bar dataKey="shop" stackId="s" fill={SERIES[0].color} stroke="#fff" strokeWidth={2} maxBarSize={24} name="Shop counter" />
-                            <Bar dataKey="online" stackId="s" fill={SERIES[1].color} stroke="#fff" strokeWidth={2} maxBarSize={24} radius={[4, 4, 0, 0]} name="Online" />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
+                <>
+                    <div className="flex gap-4 px-4 pt-3 text-xs text-slate-600">
+                        {SERIES.map((s) => (
+                            <span key={s.key} className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: s.color }} /> {s.label}</span>
+                        ))}
+                    </div>
+                    <div className="h-64 px-2 pb-3 pt-2">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={rows} margin={{ top: 8, right: 12, bottom: 0, left: 4 }} barCategoryGap="28%">
+                                <CartesianGrid stroke="#e2e8f0" vertical={false} />
+                                <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={{ stroke: '#e2e8f0' }} interval="preserveStartEnd" />
+                                <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false} width={56}
+                                    tickFormatter={(v) => (v >= 1000 ? `₹${Math.round(v / 100) / 10}k` : `₹${v}`)} />
+                                <Tooltip cursor={{ fill: '#f1f5f9' }} content={<HourTooltip />} />
+                                {/* The white stroke is the 2px gap between stacked segments. */}
+                                <Bar dataKey="shop" stackId="s" fill={SERIES[0].color} stroke="#fff" strokeWidth={2} maxBarSize={24} name="Shop counter" isAnimationActive={false} />
+                                <Bar dataKey="online" stackId="s" fill={SERIES[1].color} stroke="#fff" strokeWidth={2} maxBarSize={24} radius={[4, 4, 0, 0]} name="Online" isAnimationActive={false} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </>
             )}
         </Panel>
     )
@@ -198,106 +217,155 @@ function HourTooltip({ active, payload, label }) {
     if (!active || !payload || !payload.length) return null
     const total = payload.reduce((sum, p) => sum + (p.value || 0), 0)
     return (
-        <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-md">
+        <div className="figure rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-md">
             <p className="mb-1 font-semibold text-slate-900">{label}</p>
             {payload.map((p) => (
                 <p key={p.dataKey} className="flex items-center justify-between gap-4 text-slate-600">
                     <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm" style={{ background: p.fill }} />{p.name}</span>
-                    <span className="font-medium text-slate-900">{formatTk(p.value)}</span>
+                    <span className="font-medium text-slate-900">{formatINR(p.value)}</span>
                 </p>
             ))}
-            <p className="mt-1 flex justify-between gap-4 border-t border-slate-100 pt-1 font-semibold text-slate-900"><span>Total</span><span>{formatTk(total)}</span></p>
+            <p className="mt-1 flex justify-between gap-4 border-t border-slate-100 pt-1 font-semibold text-slate-900"><span>Total</span><span>{formatINR(total)}</span></p>
         </div>
     )
 }
 
-function Payments({ payments, total }) {
+function PaymentTypes({ payments, total, loading }) {
+    const list = payments || []
     return (
-        <Panel title="Payment types">
-            {payments.length === 0 ? (
-                <p className="px-5 py-10 text-center text-sm text-slate-500">No payments yet today.</p>
+        <Panel title="Payment types" subtitle="How customers paid">
+            {loading ? (
+                <div className="space-y-3 p-4"><Skeleton className="mx-auto h-32 w-32 rounded-full" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-2/3" /></div>
+            ) : list.length === 0 ? (
+                <EmptyState icon={CreditCard} title="No payments yet" compact>Cash, UPI, card and online payments show here once sales are made.</EmptyState>
             ) : (
-                <ul className="space-y-4 px-5 py-4">
-                    {payments.map((p) => {
-                        const share = total ? Math.round((p.total / total) * 100) : 0
-                        return (
-                            <li key={p.method}>
-                                <div className="flex items-baseline justify-between gap-2 text-sm">
-                                    <span className="font-medium text-slate-800">{p.method}</span>
-                                    <span className="font-semibold text-slate-900">{formatTk(p.total)}</span>
-                                </div>
-                                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100">
-                                    <div className="h-full rounded-full bg-slate-700" style={{ width: `${share}%` }} />
-                                </div>
-                                <p className="mt-1 text-xs text-slate-500">{p.count} {p.count === 1 ? 'payment' : 'payments'} · {share}%</p>
-                            </li>
-                        )
-                    })}
-                </ul>
+                <div className="p-4">
+                    <div className="relative mx-auto h-36 w-36">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie data={list} dataKey="total" nameKey="method" innerRadius="68%" outerRadius="100%" paddingAngle={list.length > 1 ? 2 : 0} stroke="none" isAnimationActive={false}>
+                                    {list.map((p) => <Cell key={p.method} fill={paymentColour(p.method)} />)}
+                                </Pie>
+                                <Tooltip formatter={(v, n) => [formatINR(v), n]} contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12 }} />
+                            </PieChart>
+                        </ResponsiveContainer>
+                        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                            <span className="text-[11px] text-slate-500">Total</span>
+                            <span className="figure text-sm font-semibold text-slate-900">{formatINR(total)}</span>
+                        </div>
+                    </div>
+                    <ul className="mt-4 space-y-2 text-sm">
+                        {list.map((p) => {
+                            const share = total ? Math.round((p.total / total) * 100) : 0
+                            return (
+                                <li key={p.method} className="flex items-center gap-2.5">
+                                    <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: paymentColour(p.method) }} />
+                                    <span className="flex-1 truncate text-slate-700">{p.method}</span>
+                                    <span className="figure text-xs text-slate-500">{share}%</span>
+                                    <span className="figure w-20 text-right font-medium text-slate-900">{formatINR(p.total)}</span>
+                                </li>
+                            )
+                        })}
+                    </ul>
+                </div>
             )}
         </Panel>
     )
 }
 
-function Recent({ recent }) {
-    return (
-        <Panel title="Recent sales" className="xl:col-span-2" action={<Link to="/admin/sales" className="flex items-center text-xs font-semibold text-brand-700 hover:underline">All sales <ChevronRight className="h-3.5 w-3.5" /></Link>}>
-            {recent.length === 0 ? (
-                <p className="px-5 py-10 text-center text-sm text-slate-500">No sales yet.</p>
-            ) : (
-                <ul className="divide-y divide-slate-100">
-                    {recent.map((r) => (
-                        <li key={`${r.kind}-${r.id}`}>
-                            <Link to={r.kind === 'online' ? `/admin/order/${r.id}` : '/admin/sales'} className="flex items-center gap-3 px-5 py-3 hover:bg-slate-50">
-                                <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', r.kind === 'online' ? 'bg-sky-50 text-sky-700' : 'bg-emerald-50 text-emerald-700')}>
-                                    {r.kind === 'online' ? <ShoppingCart className="h-4 w-4" /> : <Store className="h-4 w-4" />}
-                                </span>
-                                <div className="min-w-0 flex-1">
-                                    <p className="truncate text-sm font-medium text-slate-900">{r.label}{r.customer ? ` · ${r.customer}` : ''}</p>
-                                    <p className="truncate text-xs text-slate-500">
-                                        {formatWhen(r.createdAt)} · {r.method}
-                                        {r.due > 0 && <span className="font-semibold text-amber-700"> · {formatTk(r.due)} due</span>}
-                                        {r.kind === 'online' && !r.delivered && <span className="font-semibold text-sky-700"> · to deliver</span>}
-                                    </p>
-                                </div>
-                                <span className="text-sm font-semibold text-slate-900">{formatTk(r.total)}</span>
-                            </Link>
-                        </li>
-                    ))}
-                </ul>
-            )}
-        </Panel>
-    )
+function saleStatus(r) {
+    if (r.kind === 'shop') return r.due > 0 ? <Badge variant="amber">{formatINR(r.due)} due</Badge> : <Badge variant="green">Paid</Badge>
+    if (r.delivered) return <Badge variant="green">Delivered</Badge>
+    return r.paid ? <Badge variant="sky">To deliver</Badge> : <Badge variant="slate">Awaiting payment</Badge>
 }
 
-function formatWhen(iso) {
+function whenText(iso) {
     if (!iso) return ''
     const d = new Date(iso)
     const today = new Date()
-    if (d.toDateString() === today.toDateString()) return `Today ${formatTime(iso)}`
-    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ` ${formatTime(iso)}`
+    if (d.toDateString() === today.toDateString()) return `Today, ${formatTime(iso)}`
+    return `${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}, ${formatTime(iso)}`
 }
 
-function Alerts({ alerts }) {
-    const items = [
-        { show: alerts.out_of_stock, icon: PackageX, text: `${alerts.out_of_stock} out of stock`, to: '/admin/stock', tone: 'text-rose-700 bg-rose-50' },
-        { show: alerts.low_stock, icon: AlertTriangle, text: `${alerts.low_stock} running low`, to: '/admin/stock', tone: 'text-amber-700 bg-amber-50' },
-        { show: alerts.expiring, icon: CalendarClock, text: `${alerts.expiring} batch${alerts.expiring === 1 ? '' : 'es'} expiring soon`, to: '/admin/stock', tone: 'text-amber-700 bg-amber-50' },
-        { show: alerts.dues_count, icon: HandCoins, text: `${formatTk(alerts.dues_total)} owed on ${alerts.dues_count} bill${alerts.dues_count === 1 ? '' : 's'}`, to: '/admin/sales', tone: 'text-amber-700 bg-amber-50' },
-        { show: alerts.online_to_ship, icon: Truck, text: `${alerts.online_to_ship} online order${alerts.online_to_ship === 1 ? '' : 's'} to deliver`, to: '/admin/orderlist', tone: 'text-sky-700 bg-sky-50' },
-    ].filter((a) => a.show)
+function RecentSales({ recent, loading }) {
     return (
-        <Panel title="Needs attention">
-            {items.length === 0 ? (
-                <p className="px-5 py-6 text-sm text-slate-500">All clear. Nothing needs attention.</p>
+        <Panel title="Recent sales" subtitle="Latest counter sales and online orders" className="xl:col-span-2"
+            action={<Link to="/admin/sales" className="inline-flex items-center gap-0.5 text-xs font-semibold text-brand-700 hover:underline">All sales <ChevronRight className="h-3.5 w-3.5" /></Link>}>
+            {loading ? (
+                <div className="space-y-2 p-4">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}</div>
+            ) : !recent || recent.length === 0 ? (
+                <EmptyState icon={Inbox} title="No sales yet" compact>Counter sales and online orders will be listed here.</EmptyState>
+            ) : (
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                        <thead>
+                            <tr className="border-b border-slate-200/70 bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                                <th className="px-4 py-2">Reference</th><th className="px-3 py-2">Date & time</th><th className="px-3 py-2">Channel</th>
+                                <th className="px-3 py-2">Payment</th><th className="px-3 py-2">Status</th><th className="px-4 py-2 text-right">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {recent.map((r) => (
+                                <tr key={`${r.kind}-${r.id}`} className="transition-colors hover:bg-slate-50">
+                                    <td className="px-4 py-2.5">
+                                        <Link to={r.kind === 'online' ? `/admin/order/${r.id}` : '/admin/sales'} className="font-medium text-slate-900 hover:text-brand-700">
+                                            {r.kind === 'online' ? 'ORD' : 'POS'}-{String(r.id).padStart(4, '0')}
+                                        </Link>
+                                        {r.customer && <span className="block max-w-[10rem] truncate text-xs text-slate-500">{r.customer}</span>}
+                                    </td>
+                                    <td className="whitespace-nowrap px-3 py-2.5 text-slate-600">{whenText(r.createdAt)}</td>
+                                    <td className="px-3 py-2.5">
+                                        <span className="inline-flex items-center gap-1.5 text-slate-700">
+                                            {r.kind === 'online' ? <ShoppingCart className="h-3.5 w-3.5 text-slate-400" /> : <Store className="h-3.5 w-3.5 text-slate-400" />}
+                                            {r.kind === 'online' ? 'Online' : 'Counter'}
+                                        </span>
+                                    </td>
+                                    <td className="px-3 py-2.5 text-slate-600">{r.method}</td>
+                                    <td className="px-3 py-2.5">{saleStatus(r)}</td>
+                                    <td className="figure px-4 py-2.5 text-right font-semibold text-slate-900">{formatINR(r.total)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </Panel>
+    )
+}
+
+function NeedsAttention({ alerts, loading }) {
+    const items = alerts ? [
+        { show: alerts.out_of_stock, level: 'critical', icon: PackageX, title: `${alerts.out_of_stock} out of stock`, text: 'Customers can\'t buy these', to: '/admin/stock' },
+        { show: alerts.expiring, level: 'warning', icon: CalendarClock, title: `${alerts.expiring} batch${alerts.expiring === 1 ? '' : 'es'} expiring`, text: 'Within the next 7 days', to: '/admin/stock' },
+        { show: alerts.low_stock, level: 'warning', icon: AlertTriangle, title: `${alerts.low_stock} running low`, text: 'At or below the warning level', to: '/admin/stock' },
+        { show: alerts.dues_count, level: 'warning', icon: HandCoins, title: `${formatINR(alerts.dues_total)} owed`, text: `On ${alerts.dues_count} unpaid bill${alerts.dues_count === 1 ? '' : 's'}`, to: '/admin/sales' },
+        { show: alerts.online_to_ship, level: 'info', icon: Truck, title: `${alerts.online_to_ship} order${alerts.online_to_ship === 1 ? '' : 's'} to deliver`, text: 'Online orders not yet delivered', to: '/admin/orderlist' },
+    ].filter((a) => a.show) : []
+    const tone = {
+        critical: 'bg-rose-50 text-rose-600',
+        warning: 'bg-amber-50 text-amber-600',
+        info: 'bg-sky-50 text-sky-600',
+    }
+    return (
+        <Panel title="Needs attention" action={items.length > 0 && <span className="figure rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">{items.length}</span>}>
+            {loading ? (
+                <div className="space-y-2 p-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
+            ) : items.length === 0 ? (
+                <div className="flex items-center gap-3 px-4 py-4 text-sm">
+                    <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                    <span className="text-slate-600">All clear. Nothing needs attention.</span>
+                </div>
             ) : (
                 <ul className="divide-y divide-slate-100">
-                    {items.map(({ icon: Icon, text, to, tone }) => (
-                        <li key={text}>
-                            <Link to={to} className="flex items-center gap-3 px-5 py-3 text-sm hover:bg-slate-50">
-                                <span className={cn('flex h-8 w-8 items-center justify-center rounded-lg', tone)}><Icon className="h-4 w-4" /></span>
-                                <span className="flex-1 font-medium text-slate-800">{text}</span>
-                                <ChevronRight className="h-4 w-4 text-slate-400" />
+                    {items.map(({ level, icon: Icon, title, text, to }) => (
+                        <li key={title}>
+                            <Link to={to} className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-slate-50">
+                                <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', tone[level])}><Icon className="h-4 w-4" /></span>
+                                <span className="min-w-0 flex-1">
+                                    <span className="figure block truncate text-sm font-medium text-slate-900">{title}</span>
+                                    <span className="block truncate text-xs text-slate-500">{text}</span>
+                                </span>
+                                <ChevronRight className="h-4 w-4 shrink-0 text-slate-300" />
                             </Link>
                         </li>
                     ))}
@@ -307,18 +375,20 @@ function Alerts({ alerts }) {
     )
 }
 
-function TopItems({ items }) {
+function TopItems({ items, loading, isToday }) {
     return (
-        <Panel title="Top items today">
-            {items.length === 0 ? (
-                <p className="px-5 py-6 text-sm text-slate-500">Nothing sold yet today.</p>
+        <Panel title={isToday ? 'Top items today' : 'Top items that day'}>
+            {loading ? (
+                <div className="space-y-2 p-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-5 w-full" />)}</div>
+            ) : !items || items.length === 0 ? (
+                <p className="px-4 py-4 text-sm text-slate-500">Nothing sold yet.</p>
             ) : (
                 <ol className="divide-y divide-slate-100">
                     {items.map((t, i) => (
-                        <li key={t.name} className="flex items-center gap-3 px-5 py-2.5 text-sm">
-                            <span className="w-4 text-xs font-semibold text-slate-400">{i + 1}</span>
+                        <li key={t.name} className="flex items-center gap-3 px-4 py-2 text-sm">
+                            <span className="figure w-4 text-xs font-semibold text-slate-400">{i + 1}</span>
                             <span className="flex-1 truncate text-slate-800">{t.name}</span>
-                            <span className="font-semibold text-slate-900">{t.qty} {t.unit}</span>
+                            <span className="figure font-medium text-slate-900">{t.qty} {t.unit}</span>
                         </li>
                     ))}
                 </ol>

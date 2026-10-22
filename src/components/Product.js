@@ -1,13 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
-import { Award, ShoppingBag, Check, Loader2 } from 'lucide-react'
-import Rating from './Rating'
+import { Plus, Check, Loader2 } from 'lucide-react'
 import { addToCart } from '../actions/cartActions'
-import { Badge, cn, formatTk, finalPrice } from './ui'
+import { cn, formatINR, finalPrice } from './ui'
 
-// Product card: image in a rounded card, details below, and a quick add-to-cart button.
-function Product({ product }) {
+// Product card: photo on top, the price in red with the old price struck through, then the
+// name. The round button on the photo adds one to the cart without leaving the page.
+function Product({ product, compact }) {
     const dispatch = useDispatch()
     const inCart = useSelector((state) => state.cart.cartItems.find((x) => x.product === product._id))
     const [status, setStatus] = useState('idle') // idle | adding | added
@@ -15,13 +15,13 @@ function Product({ product }) {
 
     useEffect(() => () => clearTimeout(timer.current), [])
 
-    const topReviewed = product.rating > 2 && product.numReviews > 0
     const stock = product.countInStock || 0
     const inCartQty = inCart ? Number(inCart.qty) : 0
     const soldOut = stock <= 0
     const atLimit = !soldOut && inCartQty >= stock
 
-    const add = async () => {
+    const add = async (e) => {
+        e.preventDefault()
         if (soldOut || atLimit || status === 'adding') return
         setStatus('adding')
         try {
@@ -29,75 +29,49 @@ function Product({ product }) {
             setStatus('added')
             clearTimeout(timer.current)
             timer.current = setTimeout(() => setStatus('idle'), 1500)
-        } catch (e) {
+        } catch (err) {
             setStatus('idle')
         }
     }
 
-    const label = soldOut ? 'Sold out'
-        : status === 'adding' ? 'Adding'
-            : status === 'added' ? 'Added'
-                : atLimit ? 'Max in cart'
-                    : 'Add'
-
     return (
-        <div className="group flex h-full flex-col">
-            <Link to={`/product/${product._id}`} className="block">
-                <div className="relative aspect-[4/3] overflow-hidden rounded-2xl border border-slate-200/80 bg-slate-100 shadow-sm transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-xl group-hover:shadow-slate-900/10">
-                    <img
-                        src={product.image}
-                        alt={product.name}
-                        className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    />
-                    <div className="absolute left-3 top-3 flex flex-col gap-1.5">
-                        {product.is_offer && <Badge variant="red">-{product.offer_percentage}%</Badge>}
-                        {topReviewed && (
-                            <Badge variant="amber"><Award className="h-3 w-3" /> Top reviewed</Badge>
-                        )}
-                    </div>
-                    {inCartQty > 0 && (
-                        <span className="absolute right-3 top-3 rounded-full bg-white/90 px-2 py-0.5 text-xs font-semibold text-brand-700 shadow-sm backdrop-blur">
-                            {inCartQty} in cart
-                        </span>
+        <Link to={`/product/${product._id}`}
+            className="group flex h-full flex-col rounded-2xl bg-[#f3f6fb] p-2 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-900/5">
+            <div className={cn('relative overflow-hidden rounded-xl bg-white', compact ? 'aspect-square' : 'aspect-[4/3]')}>
+                {product.image && (
+                    <img src={product.image} alt={product.name} loading="lazy"
+                        className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                )}
+                {product.is_offer && product.offer_percentage > 0 && (
+                    <span className="absolute left-2 top-2 rounded-md bg-red-600 px-1.5 py-0.5 text-[11px] font-bold text-white">-{product.offer_percentage}%</span>
+                )}
+                {soldOut && <span className="absolute inset-x-0 bottom-0 bg-slate-900/70 py-1 text-center text-xs font-semibold text-white">Sold out</span>}
+                {!soldOut && !compact && (
+                    <button type="button" onClick={add} disabled={atLimit || status === 'adding'}
+                        aria-label={atLimit ? `All ${product.name} in stock are in your cart` : `Add ${product.name} to cart`}
+                        title={atLimit ? 'All in stock are in your cart' : 'Add to cart'}
+                        className={cn('absolute bottom-2 right-2 flex h-9 w-9 items-center justify-center rounded-full shadow-md transition',
+                            status === 'added' ? 'bg-emerald-500 text-white' : atLimit ? 'bg-white text-slate-300' : 'bg-white text-brand-700 hover:scale-110 hover:bg-brand-600 hover:text-white')}>
+                        {status === 'adding' ? <Loader2 className="h-4 w-4 animate-spin" />
+                            : status === 'added' ? <Check className="h-4 w-4" strokeWidth={3} /> : <Plus className="h-5 w-5" strokeWidth={2.5} />}
+                    </button>
+                )}
+                {inCartQty > 0 && !compact && (
+                    <span className="absolute right-2 top-2 rounded-full bg-white/95 px-2 py-0.5 text-[11px] font-semibold text-brand-700 shadow-sm">{inCartQty} in cart</span>
+                )}
+            </div>
+            <div className="flex flex-1 flex-col px-1.5 pb-1 pt-2.5">
+                <div className="flex flex-wrap items-baseline gap-x-1.5">
+                    <span className={cn('font-extrabold text-red-600', compact ? 'text-base' : 'text-xl sm:text-2xl')}>
+                        {formatINR(finalPrice(product))}{product.sold_by_weight && <span className="text-xs font-semibold text-slate-500">/{product.unit || 'kg'}</span>}
+                    </span>
+                    {product.is_offer && product.offer_percentage > 0 && (
+                        <span className="text-sm font-semibold text-slate-500 line-through">{formatINR(product.price)}</span>
                     )}
                 </div>
-            </Link>
-
-            <div className="flex flex-1 flex-col px-1 pt-3">
-                {product.brand && <p className="mb-0.5 text-xs font-medium uppercase tracking-wider text-slate-400">{product.brand}</p>}
-                <Link to={`/product/${product._id}`} className="line-clamp-2 font-semibold leading-snug text-slate-900 hover:text-brand-600">
-                    {product.name}
-                </Link>
-                <div className="mt-1.5">
-                    <Rating value={product.rating} text={`(${product.numReviews})`} />
-                </div>
-                <div className="mt-auto flex items-center justify-between gap-3 pt-2">
-                    <div className="flex items-baseline gap-2">
-                        <span className="text-lg font-bold text-slate-900">{formatTk(finalPrice(product))}</span>
-                        {product.is_offer && <span className="text-sm text-slate-400 line-through">{formatTk(product.price)}</span>}
-                    </div>
-                    <button
-                        type="button"
-                        onClick={add}
-                        disabled={soldOut || atLimit || status === 'adding'}
-                        aria-label={soldOut ? `${product.name} is sold out` : `Add ${product.name} to cart`}
-                        title={label === 'Add' ? 'Add to cart' : label}
-                        className={cn(
-                            'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition',
-                            status === 'added'
-                                ? 'text-emerald-600'
-                                : soldOut || atLimit
-                                    ? 'cursor-not-allowed text-slate-300'
-                                    : 'text-brand-600 hover:scale-110 hover:text-brand-700'
-                        )}
-                    >
-                        {status === 'adding' ? <Loader2 className="h-5 w-5 animate-spin" />
-                            : status === 'added' ? <Check className="h-5 w-5" strokeWidth={3} />
-                                : <ShoppingBag className="h-5 w-5" />}
-                    </button>
-                </div>
+                <p className={cn('mt-0.5 line-clamp-2 font-bold leading-snug text-slate-900', compact ? 'text-sm' : 'text-[15px] sm:text-base')}>{product.name}</p>
             </div>
-        </div>
+        </Link>
     )
 }
 

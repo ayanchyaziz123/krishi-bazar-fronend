@@ -6,8 +6,8 @@ import Loader from '../components/Loader'
 import Message from '../components/Message'
 import FormContainer from '../components/FormContainer'
 import { Card, Field, Input, Button, cn } from '../components/ui'
-import { ROLE_OPTIONS } from '../admin_components/roles'
-import { getUserDetails, updateUser } from '../actions/userActions'
+import { ROLE_OPTIONS, roleOf } from '../admin_components/roles'
+import { getUserDetails, refreshBusinesses, updateUser } from '../actions/userActions'
 import { USER_UPDATE_RESET } from '../constants/userConstants'
 
 function UserEditScreen({ match, history }) {
@@ -17,11 +17,16 @@ function UserEditScreen({ match, history }) {
     const [name, setName] = useState('')
     const [email, setEmail] = useState('')
     const [role, setRole] = useState('customer')
+    const [active, setActive] = useState(true)
 
     const dispatch = useDispatch()
 
     const userDetails = useSelector(state => state.userDetails)
     const { error, loading, user } = userDetails
+
+    const { userInfo } = useSelector(state => state.userLogin)
+    const iAmOwner = roleOf(userInfo) === 'owner'
+    const isMe = userInfo && user && user._id === userInfo._id
 
     const userUpdate = useSelector(state => state.userUpdate)
     const { error: errorUpdate, loading: loadingUpdate, success: successUpdate } = userUpdate
@@ -29,6 +34,8 @@ function UserEditScreen({ match, history }) {
     useEffect(() => {
         if (successUpdate) {
             dispatch({ type: USER_UPDATE_RESET })
+            // Handing over the business changes my own role too.
+            dispatch(refreshBusinesses())
             history.push(role === 'customer' ? '/admin/customers' : '/admin/staff')
         } else {
             if (!user.name || user._id !== Number(userId)) {
@@ -37,13 +44,15 @@ function UserEditScreen({ match, history }) {
                 setName(user.name)
                 setEmail(user.email)
                 setRole(user.role || (user.isAdmin ? 'manager' : 'customer'))
+                setActive(user.active !== false)
             }
         }
     }, [user, userId, successUpdate, history, dispatch])
 
     const submitHandler = (e) => {
         e.preventDefault()
-        dispatch(updateUser({ _id: user._id, name, email, role }))
+        const isStaff = role !== 'customer'
+        dispatch(updateUser({ _id: user._id, name, email, role, ...(isStaff && user.role ? { active } : {}) }))
     }
 
     return (
@@ -67,8 +76,14 @@ function UserEditScreen({ match, history }) {
                             </Field>
                             <fieldset>
                                 <legend className="mb-2 text-sm font-medium text-slate-700">Access</legend>
+                                {user.role === 'owner' ? (
+                                    <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+                                        <span className="font-semibold text-slate-900">Owner.</span> The owner always has full access to this business.
+                                    </p>
+                                ) : (
                                 <div className="space-y-2">
-                                    {ROLE_OPTIONS.map((r) => (
+                                    {[...ROLE_OPTIONS, ...(iAmOwner && !isMe && user.role ? [{ value: 'owner', label: 'Owner',
+                                        hint: 'Hand this business over. They get full control and you stay on as a manager.' }] : [])].map((r) => (
                                         <label key={r.value} className={cn('flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition',
                                             role === r.value ? 'border-brand-500 bg-brand-50/60' : 'border-slate-200 hover:bg-slate-50')}>
                                             <input type="radio" name="role" value={r.value} checked={role === r.value}
@@ -80,7 +95,22 @@ function UserEditScreen({ match, history }) {
                                         </label>
                                     ))}
                                 </div>
+                                )}
+                                {role === 'owner' && user.role !== 'owner' && (
+                                    <p className="mt-2 rounded-xl bg-amber-50 p-3 text-xs text-amber-800">
+                                        You are handing over the business. After saving, {user.name} is the owner and you become a manager.
+                                    </p>
+                                )}
                             </fieldset>
+                            {user.role && user.role !== 'owner' && !isMe && role !== 'customer' && (
+                                <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3">
+                                    <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} className="mt-0.5 accent-brand-600" />
+                                    <span>
+                                        <span className="block text-sm font-semibold text-slate-900">Can sign in to this business</span>
+                                        <span className="block text-xs text-slate-500">Untick to pause their access, for example while they are on leave. Their role is kept.</span>
+                                    </span>
+                                </label>
+                            )}
                             <Button type='submit' block>Update user</Button>
                         </form>
                     )}

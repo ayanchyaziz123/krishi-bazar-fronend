@@ -1,10 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, Trash2, UserPlus, Paperclip, FileText, Search, ChevronRight, Camera, X, ExternalLink } from 'lucide-react'
 import AdminLayout from '../../admin_components/AdminLayout'
-import { Alert, Badge, Button, Card, Field, Input, Modal, Select, Spinner, cn, formatTk } from '../../components/ui'
+import { Alert, Badge, Button, Card, Field, Input, Modal, Select, Spinner, cn, formatINR } from '../../components/ui'
 import { useAdminGuard, inventoryApi, errorText, formatDateTime, todayInDhaka } from '../../inventory/api'
 
-const emptyLine = () => ({ key: Math.random(), product: '', qty: '', unit_cost: '', batch_no: '', expiry_date: '' })
+const emptyLine = () => ({ key: Math.random(), product: '', qty: '', unit_cost: '', line_total: '', by_total: false, batch_no: '', expiry_date: '' })
+
+// The price per unit when the supplier's bill gives a total for the line (e.g. a 25.4 kg
+// sack for ₹2,286 is ₹90 per kg). Kept to 3 decimals, as the server stores it.
+const perUnit = (total, qty) => (Number(qty) > 0 && total !== '' ? String(Math.round((Number(total) / Number(qty)) * 1000) / 1000) : '')
+const lineTotal = (l) => Math.round((Number(l.qty) || 0) * (Number(l.unit_cost) || 0) * 100) / 100
 
 const STATUS = {
     paid: { label: 'Paid', variant: 'green' },
@@ -77,7 +82,7 @@ function ReceiveStockScreen({ history }) {
         updateLine(key, { product: id, unit_cost: p && p.cost_price !== null && p.cost_price !== undefined ? String(p.cost_price) : '' })
     }
 
-    const total = lines.reduce((sum, l) => sum + Math.round((Number(l.qty) || 0) * (Number(l.unit_cost) || 0) * 100) / 100, 0)
+    const total = lines.reduce((sum, l) => sum + lineTotal(l), 0)
 
     const reset = () => {
         setLines([emptyLine()]); setInvoiceNo(''); setNote(''); setReceipt(null)
@@ -111,7 +116,7 @@ function ReceiveStockScreen({ history }) {
         setSaving(true)
         api.postForm('purchases/', form)
             .then((res) => {
-                setSuccess(`Delivery #${res.id} saved: ${items.length} ${items.length === 1 ? 'item' : 'items'}, ${formatTk(res.total_cost)}${res.due > 0 ? `, ${formatTk(res.due)} still owed` : ', paid'}.`)
+                setSuccess(`Delivery #${res.id} saved: ${items.length} ${items.length === 1 ? 'item' : 'items'}, ${formatINR(res.total_cost)}${res.due > 0 ? `, ${formatINR(res.due)} still owed` : ', paid'}.`)
                 reset()
                 setSaving(false)
                 load()
@@ -149,25 +154,33 @@ function ReceiveStockScreen({ history }) {
                             </div>
 
                             <div className="space-y-3">
-                                <div className="hidden grid-cols-[1fr_6rem_7rem_8rem_9.5rem_2.5rem] gap-3 text-xs font-semibold uppercase tracking-wider text-slate-500 lg:grid">
-                                    <span>Item</span><span>Quantity</span><span>Buying price</span><span>Batch no.</span><span>Expiry date</span><span />
+                                <div className="hidden grid-cols-[1fr_7rem_7rem_7.5rem_7rem_8.5rem_2.5rem] gap-3 text-xs font-semibold uppercase tracking-wider text-slate-500 lg:grid">
+                                    <span>Item</span><span>Quantity / weight</span><span>Price per unit</span><span>Line total</span><span>Batch no.</span><span>Expiry date</span><span />
                                 </div>
                                 {lines.map((l) => {
                                     const p = productById(l.product)
                                     return (
-                                        <div key={l.key} className="grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-3 lg:grid-cols-[1fr_6rem_7rem_8rem_9.5rem_2.5rem] lg:gap-3 lg:bg-transparent lg:p-0">
+                                        <div key={l.key} className="grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-3 lg:grid-cols-[1fr_7rem_7rem_7.5rem_7rem_8.5rem_2.5rem] lg:gap-3 lg:bg-transparent lg:p-0">
                                             <Select value={l.product} onChange={(e) => pickProduct(l.key, e.target.value)} aria-label="Item" className="col-span-2 lg:col-span-1">
                                                 <option value="">Choose an item</option>
                                                 {products.map((prod) => (
                                                     <option key={prod._id} value={prod._id}>{prod.name} ({prod.countInStock} {prod.unit} now)</option>
                                                 ))}
                                             </Select>
-                                            <Input type="number" min={p && p.sold_by_weight ? '0.001' : '1'} step={p && p.sold_by_weight ? '0.001' : '1'} value={l.qty} required={Boolean(l.product)}
-                                                onChange={(e) => updateLine(l.key, { qty: e.target.value })}
-                                                placeholder={p ? p.unit : 'Qty'} aria-label="Quantity" />
-                                            <Input type="number" min="0" step="0.01" value={l.unit_cost} required={Boolean(l.product)}
-                                                onChange={(e) => updateLine(l.key, { unit_cost: e.target.value })}
-                                                placeholder="৳ each" aria-label="Buying price per unit" />
+                                            <div className="relative">
+                                                <Input type="number" min={p && p.sold_by_weight ? '0.001' : '1'} step={p && p.sold_by_weight ? '0.001' : '1'} value={l.qty} required={Boolean(l.product)}
+                                                    inputMode={p && p.sold_by_weight ? 'decimal' : 'numeric'}
+                                                    onChange={(e) => updateLine(l.key, { qty: e.target.value, ...(l.by_total ? { unit_cost: perUnit(l.line_total, e.target.value) } : {}) })}
+                                                    placeholder={p && p.sold_by_weight ? 'Weight' : 'Qty'} aria-label="Quantity or weight" className="pr-10" />
+                                                {p && <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">{p.unit || 'pc'}</span>}
+                                            </div>
+                                            <Input type="number" min="0" step="0.001" value={l.unit_cost} required={Boolean(l.product)}
+                                                onChange={(e) => updateLine(l.key, { unit_cost: e.target.value, by_total: false, line_total: '' })}
+                                                placeholder={p ? `₹ per ${p.unit || 'piece'}` : '₹ each'} aria-label="Buying price per unit" />
+                                            <Input type="number" min="0" step="0.01" value={l.by_total ? l.line_total : (l.qty && l.unit_cost ? String(lineTotal(l)) : '')}
+                                                onChange={(e) => updateLine(l.key, { line_total: e.target.value, by_total: true, unit_cost: perUnit(e.target.value, l.qty) })}
+                                                placeholder="₹ total" aria-label="Line total from the bill"
+                                                title="Type the total on the supplier's bill and the price per unit is worked out" />
                                             <Input value={l.batch_no} maxLength={60} onChange={(e) => updateLine(l.key, { batch_no: e.target.value })}
                                                 placeholder="Optional" aria-label="Batch number" />
                                             <Input type="date" value={l.expiry_date}
@@ -206,8 +219,8 @@ function ReceiveStockScreen({ history }) {
                                     )}
                                     <p className="mt-2 text-xs text-slate-500">
                                         {payment === 'all' ? 'Nothing will be owed for this delivery.'
-                                            : payment === 'none' ? `${formatTk(total)} will be owed to the supplier.`
-                                                : `${formatTk(Math.max(total - (Number(paidAmount) || 0), 0))} will still be owed.`}
+                                            : payment === 'none' ? `${formatINR(total)} will be owed to the supplier.`
+                                                : `${formatINR(Math.max(total - (Number(paidAmount) || 0), 0))} will still be owed.`}
                                     </p>
                                 </div>
                             </div>
@@ -216,7 +229,7 @@ function ReceiveStockScreen({ history }) {
                             {success && <Alert variant="success">{success}</Alert>}
 
                             <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                                <p className="text-lg font-bold text-slate-900">Delivery total {formatTk(total)}</p>
+                                <p className="text-lg font-bold text-slate-900">Delivery total {formatINR(total)}</p>
                                 <Button type="submit" size="lg" disabled={saving}>{saving ? 'Saving…' : 'Add to stock'}</Button>
                             </div>
                         </form>
@@ -228,7 +241,7 @@ function ReceiveStockScreen({ history }) {
                                 <h2 className="text-lg font-bold text-slate-900">Deliveries</h2>
                                 <p className="text-sm text-slate-500">
                                     {deliveries.owed_total > 0
-                                        ? <>You owe suppliers <strong className="text-rose-700">{formatTk(deliveries.owed_total)}</strong> on {deliveries.owed_count} {deliveries.owed_count === 1 ? 'delivery' : 'deliveries'}.</>
+                                        ? <>You owe suppliers <strong className="text-rose-700">{formatINR(deliveries.owed_total)}</strong> on {deliveries.owed_count} {deliveries.owed_count === 1 ? 'delivery' : 'deliveries'}.</>
                                         : 'All deliveries are paid.'}
                                 </p>
                             </div>
@@ -267,8 +280,8 @@ function ReceiveStockScreen({ history }) {
                                                     ? <span className="hidden items-center gap-1 text-xs text-slate-500 sm:flex"><Paperclip className="h-3.5 w-3.5" /> Receipt</span>
                                                     : <span className="hidden text-xs text-slate-400 sm:block">No receipt</span>}
                                                 <div className="w-28 shrink-0 text-right">
-                                                    <p className="text-sm font-semibold text-slate-900">{formatTk(d.total_cost)}</p>
-                                                    <Badge variant={STATUS[d.status].variant}>{d.status === 'partly_paid' ? `${formatTk(d.due)} owed` : STATUS[d.status].label}</Badge>
+                                                    <p className="text-sm font-semibold text-slate-900">{formatINR(d.total_cost)}</p>
+                                                    <Badge variant={STATUS[d.status].variant}>{d.status === 'partly_paid' ? `${formatINR(d.due)} owed` : STATUS[d.status].label}</Badge>
                                                 </div>
                                                 <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
                                             </button>
@@ -390,7 +403,7 @@ function DeliveryModal({ api, id, onClose, onChanged }) {
                                         <td className="px-3 py-2 text-slate-600">{i.batch_no || '—'}</td>
                                         <td className="px-3 py-2 text-right">{i.qty} {i.unit}</td>
                                         <td className={cn('px-3 py-2 text-right font-semibold', i.remaining > 0 ? 'text-slate-900' : 'text-slate-400')}>{i.remaining > 0 ? i.remaining : 'Sold'}</td>
-                                        <td className="px-3 py-2 text-right">{formatTk(i.unit_cost)}</td>
+                                        <td className="px-3 py-2 text-right">{formatINR(i.unit_cost)}</td>
                                         <td className="px-3 py-2 text-slate-600">{i.expiry_date ? showDate(i.expiry_date) : '—'}</td>
                                     </tr>
                                 ))}
@@ -400,11 +413,11 @@ function DeliveryModal({ api, id, onClose, onChanged }) {
 
                     <div className="grid gap-5 sm:grid-cols-2">
                         <div className="rounded-xl bg-slate-50 p-4 text-sm">
-                            <div className="flex justify-between"><span className="text-slate-600">Total</span><span className="font-semibold">{formatTk(d.total_cost)}</span></div>
-                            <div className="mt-1 flex justify-between"><span className="text-slate-600">Paid</span><span>{formatTk(d.amount_paid)}</span></div>
+                            <div className="flex justify-between"><span className="text-slate-600">Total</span><span className="font-semibold">{formatINR(d.total_cost)}</span></div>
+                            <div className="mt-1 flex justify-between"><span className="text-slate-600">Paid</span><span>{formatINR(d.amount_paid)}</span></div>
                             <div className="mt-2 flex items-center justify-between border-t border-slate-200 pt-2">
                                 <span className="font-medium text-slate-900">Owed</span>
-                                {d.due > 0 ? <span className="font-bold text-rose-700">{formatTk(d.due)}</span> : <Badge variant="green">Paid in full</Badge>}
+                                {d.due > 0 ? <span className="font-bold text-rose-700">{formatINR(d.due)}</span> : <Badge variant="green">Paid in full</Badge>}
                             </div>
                             {d.due > 0 && (
                                 <form onSubmit={pay} className="mt-3 flex gap-2">

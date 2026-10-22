@@ -3,7 +3,8 @@ import axios from 'axios'
 import { useSelector } from 'react-redux'
 import { Mail, Phone, CheckCircle2, Inbox, RotateCcw } from 'lucide-react'
 import AdminLayout from '../admin_components/AdminLayout'
-import { Alert, Badge, Button, Card, Modal, Spinner, Textarea, cn } from '../components/ui'
+import { useStoreBrand } from '../components/storeBrand'
+import { Alert, Badge, Button, Card, Modal, Spinner, Textarea, cn, toast } from '../components/ui'
 
 const errorText = (e) => (e.response && e.response.data && e.response.data.detail) || e.message
 const when = (iso) => (iso ? new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '')
@@ -80,13 +81,14 @@ function MessageModal({ message: m, auth, onClose, onSaved }) {
     const [note, setNote] = useState(m.reply_note || '')
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState('')
-    const subject = encodeURIComponent('Re: your message to Krishi Bazar')
+    const store = useStoreBrand()
+    const subject = encodeURIComponent(`Re: your message to ${store.name}`)
     const quoted = encodeURIComponent(`\n\n---\nYou wrote:\n${m.message}`)
 
     const save = (replied) => {
         setBusy(true)
         axios.patch(`/api/contact/${m.id}/`, { replied, reply_note: note }, auth)
-            .then((res) => { setError(''); onSaved(res.data) })
+            .then((res) => { setError(''); onSaved(res.data); toast.success(replied ? 'Marked as replied' : 'Marked as waiting') })
             .catch((e) => setError(errorText(e)))
             .finally(() => setBusy(false))
     }

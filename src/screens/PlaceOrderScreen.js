@@ -1,165 +1,171 @@
-import React, { useState, useEffect } from 'react'
-import axios from 'axios';
+import React, { useEffect, useState } from 'react'
+import axios from 'axios'
 import { Link } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
-import { MapPin, CreditCard, Ticket } from 'lucide-react'
-import Message from '../components/Message'
-import CheckoutSteps from '../components/CheckoutSteps'
-import { Container, Card, Button, Input, formatTk } from '../components/ui'
-import { createOrder } from '../actions/orderActions'
-import { ORDER_CREATE_RESET } from '../constants/orderConstants'
+import { Truck, Store, CalendarDays, Pencil, Minus, Plus, Trash2, CheckCircle2, Ticket, ShieldCheck, Phone, MessageSquareText } from 'lucide-react'
+import CheckoutSteps, { CheckoutBar, PriceDetails, checkoutButton } from '../components/CheckoutSteps'
+import { Alert, Container, Input, Textarea, cn, formatINR } from '../components/ui'
+import { addToCart, removeFromCart } from '../actions/cartActions'
+import { useStoreBrand } from '../components/storeBrand'
+import {
+    addressLines, cartTotals, qtyStep, qtyText, getCheckoutAddress, getCheckoutCoupon, getDeliveryMethod, getDeliveryNote, setCheckoutCoupon, setDeliveryNote, shippingRules, unitPrice,
+} from '../components/shop/checkout'
 
-const unitPrice = (item) => item.offer_percentage
-    ? parseFloat(item.price - ((item.price * item.offer_percentage) / 100)).toFixed(2)
-    : item.price
-
-function SummaryRow({ label, value, strong }) {
+// The delivery card at the top of the summary and payment steps.
+export function DeliveryCard({ pickup }) {
+    const store = useStoreBrand()
+    const rules = shippingRules(store)
+    const { userInfo } = useSelector((state) => state.userLogin)
+    const address = getCheckoutAddress() || {}
+    const Icon = pickup ? Store : Truck
+    const [line1, line2] = addressLines(address)
+    const when = pickup ? (rules.pickupTime || 'We will tell you when it is ready') : (rules.deliveryTime ? `Delivery in ${rules.deliveryTime}` : 'We will confirm the delivery time')
     return (
-        <div className={strong ? 'flex justify-between border-t border-slate-100 pt-3 text-base font-bold text-slate-900' : 'flex justify-between text-sm'}>
-            <dt className={strong ? '' : 'text-slate-500'}>{label}</dt>
-            <dd className={strong ? '' : 'font-medium text-slate-900'}>{value}</dd>
-        </div>
+        <section className="rounded-2xl bg-white p-4 shadow-xs ring-1 ring-slate-200/70">
+            <p className="flex items-center gap-2 font-bold text-slate-900"><Icon className="h-5 w-5 text-red-500" /> {pickup ? 'Store pick-up' : 'Home delivery'}</p>
+            <div className="mt-2 pl-7 text-[15px] text-slate-700">
+                {pickup ? (
+                    <>
+                        <p className="font-semibold text-slate-900">{userInfo && userInfo.name}</p>
+                        <p>{store.name}{store.address ? `, ${store.address}` : ''}{store.location && !(store.address || '').includes(store.location) ? `, ${store.location}` : ''}</p>
+                    </>
+                ) : (
+                    <>
+                        <p className="font-semibold text-slate-900">{address.full_name}</p>
+                        <p>{line1}</p>
+                        <p>{line2}</p>
+                        {address.phone && <p className="mt-1 flex items-center gap-1 text-sm text-slate-500"><Phone className="h-3.5 w-3.5" /> {address.phone}</p>}
+                    </>
+                )}
+            </div>
+            <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2 text-sm">
+                <span className="flex items-center gap-2 text-slate-700"><CalendarDays className="h-4 w-4" /> {when}</span>
+                <Link to="/shipping" className="inline-flex shrink-0 items-center gap-1 font-semibold text-blue-600">Change <Pencil className="h-3.5 w-3.5" /></Link>
+            </div>
+        </section>
     )
 }
 
+// Step 2: check the items, quantities, coupon and price before choosing how to pay.
 function PlaceOrderScreen({ history }) {
-
-    const [coupon_code, setCoupon_code] = useState('')
-    const [coupon_code_status, setCoupon_code_status] = useState(0)
-    const [user_id, setUser_id] = useState()
-    const [total_discount, setTotal_discount] = useState(0)
-    const orderCreate = useSelector(state => state.orderCreate)
-    const { order, error, success } = orderCreate
-    const [coupon_id, setCoupon_id] = useState(0);
-
     const dispatch = useDispatch()
-
-    const cart = useSelector(state => state.cart)
-    const userLogin = useSelector(state => state.userLogin)
-    const { userInfo } = userLogin
-
-    cart.itemsPrice = cart.cartItems.reduce((acc, item) => acc + unitPrice(item) * item.qty, 0).toFixed(2)
-    cart.shippingPrice = (cart.itemsPrice > 100 ? 0 : 10).toFixed(2)
-    cart.taxPrice = Number((0.050) * cart.itemsPrice).toFixed(2)
-    cart.totalPrice = (Number(cart.itemsPrice) + Number(cart.shippingPrice) + Number(cart.taxPrice)).toFixed(2) - total_discount;
+    const { userInfo } = useSelector((state) => state.userLogin)
+    const { cartItems } = useSelector((state) => state.cart)
+    const rules = shippingRules(useStoreBrand())
+    const pickup = getDeliveryMethod() === 'pickup'
+    const [note, setNote] = useState(getDeliveryNote)
+    const [coupon, setCoupon] = useState(getCheckoutCoupon)
+    const [code, setCode] = useState(coupon ? coupon.code : '')
+    const [couponState, setCouponState] = useState(coupon ? 'valid' : '')
 
     useEffect(() => {
-        if (!userInfo) return
-        setUser_id(userInfo._id);
-    }, [userInfo])
+        if (!userInfo) history.replace('/login?redirect=shipping')
+        else if (!cartItems.length) history.replace('/cart')
+        else if (!pickup && !getCheckoutAddress()) history.replace('/shipping')
+    }, [userInfo, cartItems.length, pickup, history])
 
-    const getCoouponCodeStatus = (e) => {
+    const checkCoupon = (e) => {
         e.preventDefault()
-        axios.post(`/api/products/coupon_check/`, { user_id, coupon_code }).then(res => {
-            setCoupon_code_status(res.data.status);
-            setTotal_discount(res.data.total_discount);
-            setCoupon_id(res.data.coupon_id)
-        }).catch((err) => console.log(err))
+        if (!code.trim()) return
+        setCouponState('checking')
+        // The server checks the code against the signed-in customer.
+        axios.post('/api/products/coupon_check/', { coupon_code: code.trim() }, { headers: { Authorization: `Bearer ${userInfo.token}` } })
+            .then(({ data }) => {
+                if (Number(data.status) === 3) {
+                    const next = { id: data.coupon_id, discount: Number(data.total_discount), code: code.trim() }
+                    setCoupon(next); setCheckoutCoupon(next); setCouponState('valid')
+                } else {
+                    setCoupon(null); setCheckoutCoupon(null); setCouponState('invalid')
+                }
+            })
+            .catch(() => setCouponState('error'))
     }
+    const removeCoupon = () => { setCoupon(null); setCheckoutCoupon(null); setCode(''); setCouponState('') }
 
-    if (!cart.paymentMethod) {
-        history.push('/payment')
-    }
-
-    useEffect(() => {
-        if (success) {
-            history.push(`/order/${order._id}`)
-            dispatch({ type: ORDER_CREATE_RESET })
-        }
-    }, [success, history, order, dispatch])
-
-    const placeOrder = () => {
-        dispatch(createOrder({
-            orderItems: cart.cartItems,
-            shippingAddress: cart.shippingAddress,
-            paymentMethod: cart.paymentMethod,
-            itemsPrice: cart.itemsPrice,
-            shippingPrice: cart.shippingPrice,
-            taxPrice: cart.taxPrice,
-            totalPrice: cart.totalPrice,
-            coupon_id: coupon_id
-        }))
-    }
-
+    const totals = cartTotals(cartItems, { pickup, rules, discount: coupon ? coupon.discount : 0 })
+    const belowMinimum = totals.items < rules.minOrder
+    if (!userInfo || !cartItems.length) return null
 
     return (
-        <Container>
-            <CheckoutSteps step1 step2 step3 step4 />
-            <div className="grid gap-8 lg:grid-cols-[1fr_22rem]">
-                <div className="space-y-6">
-                    <Card className="p-6">
-                        <h2 className="mb-4 flex items-center gap-2 font-semibold text-slate-900"><Ticket className="h-5 w-5 text-slate-400" /> Coupon</h2>
-                        <form onSubmit={getCoouponCodeStatus}>
-                            <p className="mb-2 text-sm text-slate-500">Have a coupon? Enter it here. Otherwise you can skip this.</p>
-                            <div className="flex gap-2">
-                                <Input placeholder="XY123ABC" className="font-mono uppercase" onChange={(e) => { setCoupon_code(e.target.value) }} />
-                                <Button type="submit" variant="dark" className="h-11 shrink-0">Apply</Button>
+        <Container className="max-w-3xl space-y-5 pb-28 md:pb-0">
+            <CheckoutSteps current={1} />
+            <DeliveryCard pickup={pickup} />
+
+            <ul className="space-y-3">
+                {cartItems.map((item) => {
+                    const unit = unitPrice(item)
+                    const qty = Number(item.qty)
+                    return (
+                        <li key={item.product} className="rounded-2xl bg-white p-4 shadow-xs ring-1 ring-slate-200/70">
+                            <div className="flex gap-4">
+                                <Link to={`/product/${item.product}`} className="h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-slate-50">
+                                    {item.image && <img src={item.image} alt="" className="h-full w-full object-cover" />}
+                                </Link>
+                                <div className="min-w-0 flex-1">
+                                    <Link to={`/product/${item.product}`} className="line-clamp-2 font-bold leading-snug text-slate-900">{item.name}</Link>
+                                    <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                                        <span className="text-lg font-extrabold text-red-600">{formatINR(unit)}</span>
+                                        {item.offer_percentage > 0 && (
+                                            <>
+                                                <span className="text-sm text-slate-400 line-through">{formatINR(item.price)}</span>
+                                                <span className="rounded-md bg-red-600 px-1.5 py-0.5 text-[11px] font-bold text-white">-{item.offer_percentage}%</span>
+                                            </>
+                                        )}
+                                    </div>
+                                    {item.offer_percentage > 0 && <p className="mt-1 inline-block rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">Save {formatINR((item.price - unit) * qty)}</p>}
+                                    <p className="mt-1 flex items-center gap-1 text-sm text-emerald-600"><CheckCircle2 className="h-4 w-4" /> In stock</p>
+                                </div>
                             </div>
-                            {coupon_code_status == 3 // eslint-disable-line eqeqeq
-                                ? <Message variant="success" className="mt-3">Your code is valid. The discount has been applied.</Message>
-                                : coupon_code_status == 2 // eslint-disable-line eqeqeq
-                                    ? <Message variant="danger" className="mt-3">That code isn't valid. Please try again.</Message>
-                                    : null}
-                        </form>
-                    </Card>
+                            <div className="mt-3 flex items-center gap-3">
+                                <div className="inline-flex h-10 items-center rounded-xl ring-1 ring-slate-200">
+                                    <button type="button" aria-label="One less" disabled={qty <= qtyStep(item)} onClick={() => dispatch(addToCart(item.product, qty - qtyStep(item)))}
+                                        className="flex h-full w-10 items-center justify-center disabled:text-slate-300"><Minus className="h-4 w-4" /></button>
+                                    <span className="min-w-7 px-1 text-center font-semibold tabular-nums">{qtyText(qty, item)}</span>
+                                    <button type="button" aria-label="One more" disabled={qty + qtyStep(item) > item.countInStock} onClick={() => dispatch(addToCart(item.product, qty + qtyStep(item)))}
+                                        className="flex h-full w-10 items-center justify-center disabled:text-slate-300"><Plus className="h-4 w-4" /></button>
+                                </div>
+                                <span className="text-sm text-slate-500">= <strong className="text-slate-900">{formatINR(unit * qty)}</strong></span>
+                                <button type="button" onClick={() => dispatch(removeFromCart(item.product))} aria-label={`Remove ${item.name}`}
+                                    className="ml-auto flex h-10 w-10 items-center justify-center rounded-xl ring-1 ring-slate-200 hover:bg-rose-50 hover:text-rose-600"><Trash2 className="h-4 w-4" /></button>
+                            </div>
+                        </li>
+                    )
+                })}
+            </ul>
 
-                    <Card className="grid gap-6 p-6 sm:grid-cols-2">
-                        <div>
-                            <h2 className="mb-2 flex items-center gap-2 font-semibold text-slate-900"><MapPin className="h-5 w-5 text-slate-400" /> Shipping</h2>
-                            <p className="text-sm text-slate-600">
-                                {cart.shippingAddress.address}, {cart.shippingAddress.city} {cart.shippingAddress.postalCode}, {cart.shippingAddress.country}
-                            </p>
-                        </div>
-                        <div>
-                            <h2 className="mb-2 flex items-center gap-2 font-semibold text-slate-900"><CreditCard className="h-5 w-5 text-slate-400" /> Payment</h2>
-                            <p className="text-sm text-slate-600">{cart.paymentMethod}</p>
-                        </div>
-                    </Card>
+            <section className="rounded-2xl bg-white p-4 shadow-xs ring-1 ring-slate-200/70">
+                <p className="mb-2 flex items-center gap-2 font-bold text-slate-900"><Ticket className="h-5 w-5 text-slate-400" /> Coupon</p>
+                {coupon ? (
+                    <div className="flex items-center justify-between rounded-xl bg-emerald-50 px-3 py-2.5 text-sm">
+                        <span className="text-emerald-800"><strong className="font-mono">{coupon.code.toUpperCase()}</strong> applied: {formatINR(coupon.discount)} off</span>
+                        <button type="button" onClick={removeCoupon} className="font-semibold text-slate-600 hover:text-slate-900">Remove</button>
+                    </div>
+                ) : (
+                    <form onSubmit={checkCoupon} className="flex gap-2">
+                        <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="Enter a coupon code" className="font-mono uppercase" aria-label="Coupon code" />
+                        <button type="submit" disabled={couponState === 'checking'} className="h-11 shrink-0 rounded-xl bg-slate-900 px-5 text-sm font-semibold text-white hover:bg-slate-800">Apply</button>
+                    </form>
+                )}
+                {couponState === 'invalid' && <p className="mt-2 text-sm text-rose-600">That code isn't valid for your account.</p>}
+                {couponState === 'error' && <p className="mt-2 text-sm text-rose-600">The code couldn't be checked. Please try again.</p>}
+            </section>
 
-                    <Card>
-                        <h2 className="border-b border-slate-100 px-6 py-4 font-semibold text-slate-900">Order items</h2>
-                        {cart.cartItems.length === 0 ? <div className="p-6"><Message variant='info'>Your cart is empty</Message></div> : (
-                            <ul className="divide-y divide-slate-100">
-                                {cart.cartItems.map((item, index) => (
-                                    <li key={index} className="flex items-center gap-4 px-6 py-4">
-                                        <span className="flex h-14 w-16 shrink-0 items-center justify-center rounded-lg bg-slate-50 p-1">
-                                            <img src={item.image} alt={item.name} className="max-h-full max-w-full object-contain" />
-                                        </span>
-                                        <Link to={`/product/${item.product}`} className="min-w-0 flex-1 truncate text-sm font-medium text-slate-900 hover:text-brand-600">{item.name}</Link>
-                                        <span className="text-right text-sm text-slate-500">
-                                            {item.qty} × {formatTk(unitPrice(item))}
-                                            <span className="block font-semibold text-slate-900">{formatTk((item.qty * unitPrice(item)).toFixed(2))}</span>
-                                        </span>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                    </Card>
-                </div>
+            <section className="rounded-2xl bg-white p-4 shadow-xs ring-1 ring-slate-200/70">
+                <label htmlFor="delivery-note" className="mb-2 flex items-center gap-2 font-bold text-slate-900">
+                    <MessageSquareText className="h-5 w-5 text-slate-400" /> {pickup ? 'Note for the shop' : 'Delivery instructions'} <span className="text-sm font-normal text-slate-400">(optional)</span>
+                </label>
+                <Textarea id="delivery-note" rows={2} maxLength={300} value={note} onChange={(e) => { setNote(e.target.value); setDeliveryNote(e.target.value) }}
+                    placeholder={pickup ? 'e.g. I will collect after 6 pm' : 'e.g. Call when you reach the gate'} />
+            </section>
 
-                <div className="space-y-4 lg:sticky lg:top-32 lg:self-start">
-                    <Card className="p-6">
-                        <h2 className="font-semibold text-slate-900">Order summary</h2>
-                        <dl className="mt-5 space-y-3">
-                            <SummaryRow label="Items" value={formatTk(cart.itemsPrice)} />
-                            <SummaryRow label="Shipping" value={formatTk(cart.shippingPrice)} />
-                            <SummaryRow label="Tax" value={formatTk(cart.taxPrice)} />
-                            {coupon_code_status == 3 && <SummaryRow label="Coupon discount" value={`-${formatTk(total_discount)}`} /> /* eslint-disable-line eqeqeq */}
-                            <SummaryRow label="Total" value={formatTk(cart.totalPrice)} strong />
-                        </dl>
-                        {error && <Message variant='danger' className="mt-4">{error}</Message>}
-                        <Button
-                            block
-                            size="lg"
-                            className="mt-6"
-                            disabled={cart.cartItems.length === 0}
-                            onClick={placeOrder}
-                        >
-                            Place order
-                        </Button>
-                    </Card>
-                </div>
-            </div>
+            <PriceDetails totals={totals} pickup={pickup} rules={rules} />
+            {belowMinimum && <Alert variant="warning">The minimum order is {formatINR(rules.minOrder)}. Add {formatINR(rules.minOrder - totals.items)} more to continue.</Alert>}
+
+            <p className="flex items-start gap-3 text-sm text-slate-600"><ShieldCheck className="h-5 w-5 shrink-0 text-red-500" /> Prices are checked again when you place the order. Safe and secure checkout.</p>
+
+            <CheckoutBar total={totals.total}>
+                <button type="button" disabled={belowMinimum} onClick={() => history.push('/payment')} className={cn(checkoutButton)}>Continue to payment</button>
+            </CheckoutBar>
         </Container>
     )
 }

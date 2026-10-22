@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Loader from '../components/Loader'
 import Product from '../components/Product'
-import { Container, PageHeader, Card, formatTk } from '../components/ui'
+import { Container, PageHeader, Card, formatINR } from '../components/ui'
 
 const baseURL = "/api/products/all/";
 const MIN = 0
@@ -29,7 +29,7 @@ const PriceRangeScreen = () => {
                     <div>
                         <p className="text-sm text-slate-500">Budget</p>
                         <p className="text-3xl font-bold tracking-tight text-slate-900">
-                            {formatTk(MIN)} <span className="text-slate-300">–</span> {formatTk(value)}
+                            {formatINR(MIN)} <span className="text-slate-300">–</span> {formatINR(value)}
                         </p>
                     </div>
                     <p className="rounded-full bg-brand-50 px-3 py-1 text-sm font-semibold text-brand-700">
@@ -46,8 +46,8 @@ const PriceRangeScreen = () => {
                     onChange={(e) => setValue(Number(e.target.value))}
                 />
                 <div className="mt-2 flex justify-between text-xs text-slate-400">
-                    <span>{formatTk(MIN)}</span>
-                    <span>{formatTk(MAX)}</span>
+                    <span>{formatINR(MIN)}</span>
+                    <span>{formatINR(MAX)}</span>
                 </div>
             </Card>
 

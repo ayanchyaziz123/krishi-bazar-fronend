@@ -5,11 +5,11 @@ import { Pencil, Trash2, UserPlus } from 'lucide-react'
 import Loader from '../components/Loader'
 import Message from '../components/Message'
 import AdminLayout from '../admin_components/AdminLayout'
-import { Alert, Table, Th, Td, Button, Badge, Field, Input, Modal, cn } from '../components/ui'
+import { Alert, Table, Th, Td, Button, Badge, ConfirmDialog, Field, Input, Modal, cn, toast } from '../components/ui'
 import { listUsers, deleteUser } from '../actions/userActions'
-import { ROLE_LABELS, ROLE_OPTIONS } from '../admin_components/roles'
+import { ROLE_LABELS, ROLE_OPTIONS, isManagerRole, roleOf } from '../admin_components/roles'
 
-const ROLE_BADGE = { manager: 'brand', cashier: 'green', stock: 'amber', orders: 'sky' }
+const ROLE_BADGE = { owner: 'brand', manager: 'brand', cashier: 'green', stock: 'amber', orders: 'sky' }
 // The same list serves two pages: /admin/staff and /admin/customers.
 function UserListScreen({ history, location }) {
     const staffPage = location.pathname.startsWith('/admin/staff')
@@ -29,17 +29,19 @@ function UserListScreen({ history, location }) {
     const [notice, setNotice] = useState('')
 
     useEffect(() => {
-        if (userInfo && userInfo.isAdmin) {
+        if (isManagerRole(roleOf(userInfo))) {
             dispatch(listUsers())
         } else {
             history.push('/login')
         }
     }, [dispatch, history, successDelete, userInfo])
 
-    const deleteHandler = (id) => {
-        if (window.confirm('Are you sure you want to delete this user?')) {
-            dispatch(deleteUser(id))
-        }
+    const [deleting, setDeleting] = useState(null)
+    const deleteHandler = (id) => setDeleting((users || []).find((u) => u._id === id) || null)
+    const confirmDelete = () => {
+        dispatch(deleteUser(deleting._id))
+        toast.success(`${deleting.name} was removed from your staff.`)
+        setDeleting(null)
     }
 
     const roleOfRow = (u) => u.role || (u.isAdmin ? 'manager' : null)
@@ -82,14 +84,18 @@ function UserListScreen({ history, location }) {
                                             </Td>
                                             <Td>{user.email}</Td>
                                             <Td>{role
-                                                ? <Badge variant={ROLE_BADGE[role]}>{ROLE_LABELS[role]}</Badge>
+                                                ? <span className="inline-flex flex-wrap gap-1.5">
+                                                    <Badge variant={ROLE_BADGE[role]}>{ROLE_LABELS[role]}</Badge>
+                                                    {user.active === false && <Badge variant="slate">Access paused</Badge>}
+                                                </span>
                                                 : <Badge variant="slate">Customer</Badge>}
                                             </Td>
                                             <Td className="text-right">
                                                 <div className="inline-flex gap-1">
                                                     <Button to={`/admin/user/${user._id}/edit`} variant="ghost" size="icon" aria-label={`Edit ${user.name}`}><Pencil className="h-4 w-4" /></Button>
-                                                    <Button variant="danger-soft" size="icon" onClick={() => deleteHandler(user._id)} aria-label={`Delete ${user.name}`} disabled={isMe}
-                                                        title={isMe ? "You can't delete your own account" : undefined}><Trash2 className="h-4 w-4" /></Button>
+                                                    <Button variant="danger-soft" size="icon" onClick={() => deleteHandler(user._id)} aria-label={`Remove ${user.name}`} disabled={isMe || !role || role === 'owner'}
+                                                        title={isMe ? "You can't remove yourself" : role === 'owner' ? "The owner can't be removed"
+                                                            : !role ? "Customer accounts belong to the customer" : undefined}><Trash2 className="h-4 w-4" /></Button>
                                                 </div>
                                             </Td>
                                         </tr>
@@ -104,6 +110,12 @@ function UserListScreen({ history, location }) {
                         </Table>
                     )}
 
+            <ConfirmDialog show={Boolean(deleting)} title={deleting ? `Remove ${deleting.name} from your staff?` : ''} confirmLabel="Remove" danger
+                onConfirm={confirmDelete} onClose={() => setDeleting(null)}>
+                They lose access to this business straight away. Their account, past sales and orders are kept.
+                To stop access for a while instead, pause it from their edit page.
+            </ConfirmDialog>
+
             {adding && (
                 <AddStaff
                     token={userInfo.token}
@@ -111,6 +123,7 @@ function UserListScreen({ history, location }) {
                     onAdded={(user) => {
                         setAdding(false)
                         setNotice(`${user.name} can now sign in as ${ROLE_LABELS[user.role].toLowerCase()} with ${user.email}.`)
+                        toast.success(`${user.name} was added as ${ROLE_LABELS[user.role].toLowerCase()}.`)
                         dispatch(listUsers())
                     }}
                 />

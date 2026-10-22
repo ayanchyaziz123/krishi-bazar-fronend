@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { MapPin, Phone, Printer, Mail, Video, CheckCircle2 } from 'lucide-react';
+import { MapPin, Phone, Mail, CheckCircle2 } from 'lucide-react';
+import { useStoreBrand } from '../components/storeBrand';
 import { Alert, Container, PageHeader, Card, Field, Input, Select, Textarea, Checkbox, Button } from '../components/ui';
 
-const EMPTY = { first_name: '', last_name: '', area_code: '+880', phone: '', email: '', need_contact: true, contact_media: 'email', message: '', website: '' };
+const EMPTY = { first_name: '', last_name: '', area_code: '+91', phone: '', email: '', need_contact: true, contact_media: 'email', message: '', website: '' };
 
 function Contact() {
+    const store = useStoreBrand();
     const [form, setForm] = useState(EMPTY);
     const [sending, setSending] = useState(false);
     const [sent, setSent] = useState(false);
@@ -35,15 +37,13 @@ function Contact() {
                     <div className="rounded-3xl bg-slate-900 p-7 text-slate-300">
                         <h2 className="font-semibold text-white">Our address</h2>
                         <ul className="mt-5 space-y-4 text-sm">
-                            <li className="flex gap-3"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-brand-400" />121, Zindabazar, Sylhet, Bangladesh</li>
-                            <li className="flex gap-3"><Phone className="mt-0.5 h-4 w-4 shrink-0 text-brand-400" />+852 1234 5678</li>
-                            <li className="flex gap-3"><Printer className="mt-0.5 h-4 w-4 shrink-0 text-brand-400" />+852 8765 4321</li>
-                            <li className="flex gap-3"><Mail className="mt-0.5 h-4 w-4 shrink-0 text-brand-400" /><a href="mailto:aaziz9642@gmail.com" className="hover:text-white">aaziz9642@gmail.com</a></li>
+                            {store.address && <li className="flex gap-3"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-brand-400" />{store.address}</li>}
+                            {store.phone && <li className="flex gap-3"><Phone className="mt-0.5 h-4 w-4 shrink-0 text-brand-400" />{store.phone}</li>}
+                            {store.email && <li className="flex gap-3"><Mail className="mt-0.5 h-4 w-4 shrink-0 text-brand-400" /><a href={`mailto:${store.email}`} className="hover:text-white">{store.email}</a></li>}
                         </ul>
-                        <div className="mt-7 grid grid-cols-3 gap-2">
-                            <a href="tel:+85212345678" className="flex flex-col items-center gap-1.5 rounded-xl bg-white/5 py-3 text-xs font-semibold text-white transition hover:bg-white/10"><Phone className="h-4 w-4" /> Call</a>
-                            <a href="#/contact" className="flex flex-col items-center gap-1.5 rounded-xl bg-white/5 py-3 text-xs font-semibold text-white transition hover:bg-white/10"><Video className="h-4 w-4" /> Skype</a>
-                            <a href="mailto:aaziz9642@gmail.com" className="flex flex-col items-center gap-1.5 rounded-xl bg-white/5 py-3 text-xs font-semibold text-white transition hover:bg-white/10"><Mail className="h-4 w-4" /> Email</a>
+                        <div className="mt-7 grid grid-cols-2 gap-2">
+                            {store.phone && <a href={`tel:${store.phone.replace(/\s+/g, '')}`} className="flex flex-col items-center gap-1.5 rounded-xl bg-white/5 py-3 text-xs font-semibold text-white transition hover:bg-white/10"><Phone className="h-4 w-4" /> Call</a>}
+                            {store.email && <a href={`mailto:${store.email}`} className="flex flex-col items-center gap-1.5 rounded-xl bg-white/5 py-3 text-xs font-semibold text-white transition hover:bg-white/10"><Mail className="h-4 w-4" /> Email</a>}
                         </div>
                     </div>
                 </div>
@@ -64,7 +64,7 @@ function Contact() {
                             <Field label="Last name" id="l_name"><Input id="l_name" value={form.last_name} onChange={set('last_name')} placeholder="Last name" /></Field>
                         </div>
                         <div className="grid gap-4 sm:grid-cols-[8rem_1fr]">
-                            <Field label="Area code" id="a_code"><Input id="a_code" value={form.area_code} onChange={set('area_code')} placeholder="+880" /></Field>
+                            <Field label="Area code" id="a_code"><Input id="a_code" value={form.area_code} onChange={set('area_code')} placeholder="+91" /></Field>
                             <Field label="Telephone" id="tel_p"><Input id="tel_p" type="tel" value={form.phone} onChange={set('phone')} placeholder="Phone number" /></Field>
                         </div>
                         <Field label="Email" id="c_email" hint="We'll never share your email with anyone else. Give an email or a phone number so we can reply.">

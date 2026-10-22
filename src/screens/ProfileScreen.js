@@ -3,9 +3,10 @@ import { useDispatch, useSelector } from 'react-redux'
 import { X as XIcon, ChevronRight } from 'lucide-react'
 import Loader from '../components/Loader'
 import Message from '../components/Message'
-import { Container, PageHeader, Card, Field, Input, Button, Badge, Table, Th, Td, formatTk } from '../components/ui'
+import { Container, PageHeader, Card, Field, Input, Button, Badge, Table, Th, Td, formatINR } from '../components/ui'
 import { getUserDetails, updateUserProfile } from '../actions/userActions'
 import { USER_UPDATE_PROFILE_RESET } from '../constants/userConstants'
+import { STATUS_TONES, statusLabel } from '../components/shop/checkout'
 import { listMyOrders } from '../actions/orderActions'
 
 function ProfileScreen({ history }) {
@@ -106,16 +107,18 @@ function ProfileScreen({ history }) {
                                     <Th>Order</Th>
                                     <Th>Date</Th>
                                     <Th>Total</Th>
+                                    <Th>Status</Th>
                                     <Th>Paid</Th>
                                     <Th></Th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                                {orders.map(order => (
+                                {[...orders].sort((a, b) => b._id - a._id).map(order => (
                                     <tr key={order._id} className="hover:bg-slate-50/60">
                                         <Td className="font-semibold text-slate-900">#{order._id}</Td>
                                         <Td>{order.createdAt.substring(0, 10)}</Td>
-                                        <Td>{formatTk(order.totalPrice)}</Td>
+                                        <Td>{formatINR(order.totalPrice)}</Td>
+                                        <Td><Badge variant={STATUS_TONES[order.order_status] || 'slate'}>{statusLabel(order.order_status, order.delivery_method === 'pickup')}</Badge></Td>
                                         <Td>{order.isPaid
                                             ? <Badge variant="green">{order.paidAt.substring(0, 10)}</Badge>
                                             : <Badge variant="red"><XIcon className="h-3 w-3" /> Unpaid</Badge>}

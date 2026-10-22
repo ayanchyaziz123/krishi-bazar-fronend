@@ -11,9 +11,9 @@ const SORTS = [
 
 const PRICES = [
     { id: 'all', label: 'Any price' },
-    { id: 'u200', label: 'Under ৳200', max: 200 },
-    { id: '200-500', label: '৳200 – ৳500', min: 200, max: 500 },
-    { id: 'o500', label: 'Over ৳500', min: 500 },
+    { id: 'u200', label: 'Under ₹200', max: 200 },
+    { id: '200-500', label: '₹200 – ₹500', min: 200, max: 500 },
+    { id: 'o500', label: 'Over ₹500', min: 500 },
 ]
 
 function Option({ active, onClick, children, round }) {

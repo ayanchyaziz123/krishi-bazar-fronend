@@ -10,6 +10,8 @@ import ProductScreen from './screens/ProductScreen'
 import CartScreen from './screens/CartScreen'
 import LoginScreen from './screens/LoginScreen'
 import withAdminGate from './inventory/AdminGate'
+import BottomNav, { BottomNavSpacer } from './components/shop/BottomNav'
+import { Toaster } from './components/ui'
 
 // Loaded only when someone opens them, so the shop's first visit stays small.
 const AdminArea = lazy(() => import('./AdminArea'))
@@ -27,6 +29,9 @@ const OrderScreen = lazy(() => import('./screens/OrderScreen'))
 const TopReviewProductScreen = lazy(() => import('./screens/TopReviewProductScreen'))
 const Contact = lazy(() => import('./screens/ContactScreen'))
 const PriceRangeScreen = lazy(() => import('./screens/PriceRangeScreen'))
+const SitePageScreen = lazy(() => import('./screens/SitePageScreen'))
+const CategoryScreen = lazy(() => import('./screens/CategoryScreen'))
+const StoreScreen = lazy(() => import('./screens/StoreScreen'))
 
 // A crash on one page shows a message with a way out; moving to another page clears it.
 function PageBoundary({ children, fullPage }) {
@@ -52,7 +57,7 @@ function App() {
           <div className="flex min-h-screen flex-col">
             <Header />
 
-            <main className="flex-1 py-8 sm:py-10">
+            <main className="flex-1 py-4 sm:py-8 md:py-10">
               <PageBoundary>
               <Suspense fallback={<Loader />}>
               <Route path='/' component={HomeScreen} exact />
@@ -72,11 +77,17 @@ function App() {
               <Route path='/topReviewProductScreen' component={TopReviewProductScreen} />
               <Route path='/contact' component={Contact} />
               <Route path='/priceRange' component={PriceRangeScreen} />
+              <Route path='/page/:slug' component={SitePageScreen} />
+              <Route path='/categories' component={CategoryScreen} />
+              <Route path='/stores' component={StoreScreen} />
               </Suspense>
               </PageBoundary>
             </main>
             <Footer />
+            <BottomNavSpacer />
+            <BottomNav />
             <ChatAssistant />
+            <Toaster placement="bottom-24 inset-x-3 md:inset-x-auto md:bottom-4 md:right-4" />
           </div>
         </Route>
       </Switch>

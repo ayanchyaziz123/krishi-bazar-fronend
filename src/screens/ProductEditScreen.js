@@ -7,7 +7,8 @@ import { CKEditor } from '@ckeditor/ckeditor5-react'
 import ClassicEditor from '@ckeditor/ckeditor5-build-classic'
 import Loader from '../components/Loader'
 import FormContainer from '../components/FormContainer'
-import { Alert, Card, Field, Input, Checkbox, Button } from '../components/ui'
+import { Alert, Card, Field, Input, Checkbox, Button, Select } from '../components/ui'
+import { GST_RATES } from '../components/shop/gst'
 import { useCategories } from '../components/categories'
 
 const errorText = (e) => (e.response && e.response.data && e.response.data.detail) || e.message
@@ -17,7 +18,7 @@ const PLACEHOLDER = /placeholder/
 const EMPTY = {
     name: '', category: '', brand: '', weight: '', unit: 'piece', description: '',
     price: '', online_price: '', countInStock: '', is_offer: false, offer_percentage: 0,
-    sell_online: true, sell_in_shop: true, sold_by_weight: false, code: '',
+    sell_online: true, sell_in_shop: true, sold_by_weight: false, code: '', hsn_code: '', gst_rate: '0',
 }
 
 // Add a new product or edit one. A new product is only saved when the form is complete,
@@ -55,6 +56,7 @@ function ProductEditScreen({ match, history }) {
                     is_offer: Boolean(p.is_offer), offer_percentage: p.offer_percentage || 0,
                     sell_online: p.sell_online !== false, sell_in_shop: p.sell_in_shop !== false,
                     sold_by_weight: Boolean(p.sold_by_weight), code: p.code || '',
+                    hsn_code: p.hsn_code || '', gst_rate: String(Number(p.gst_rate || 0)),
                 })
                 setPhotos(Object.fromEntries(IMAGE_FIELDS.map(([f]) => [f, p[f] && !PLACEHOLDER.test(p[f]) ? p[f] : null])))
             })
@@ -115,10 +117,10 @@ function ProductEditScreen({ match, history }) {
     return (
         <FormContainer wide>
             <Link to='/admin/productlist' className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-900">
-                <ArrowLeft className="h-4 w-4" /> Back to products
+                <ArrowLeft className="h-4 w-4" /> Back to items
             </Link>
 
-            <h1 className="mb-6 text-2xl font-bold tracking-tight text-slate-900">{isNew ? 'New product' : 'Edit product'}</h1>
+            <h1 className="mb-6 text-2xl font-bold tracking-tight text-slate-900">{isNew ? 'New item' : 'Edit item'}</h1>
             {error && <Alert variant="danger" className="mb-4">{error}</Alert>}
 
             <form onSubmit={submit} className="space-y-6">
@@ -151,7 +153,7 @@ function ProductEditScreen({ match, history }) {
                         <Checkbox id="sell_in_shop" label="Sell at the shop counter" checked={form.sell_in_shop} onChange={set('sell_in_shop')} />
                     </div>
                     {!form.sell_online && !form.sell_in_shop && (
-                        <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">This product is not for sale anywhere. It stays in stock and reports.</p>
+                        <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">This item is not for sale anywhere. It stays in stock and reports.</p>
                     )}
                     <div className="mt-5 grid gap-4 sm:grid-cols-3">
                         <Field label="Counter code" id="code" hint="Optional. Cashiers type it, e.g. 101.">
@@ -164,15 +166,25 @@ function ProductEditScreen({ match, history }) {
                             <Checkbox id="sold_by_weight" label="Sold loose by weight" checked={form.sold_by_weight} onChange={set('sold_by_weight')} />
                         </div>
                     </div>
+                    <div className="mt-4 grid gap-4 sm:grid-cols-3">
+                        <Field label="HSN code" id="hsn_code" hint="For GST invoices. 4, 6 or 8 digits, e.g. 1006 for rice.">
+                            <Input id="hsn_code" inputMode="numeric" maxLength={8} value={form.hsn_code} onChange={set('hsn_code')} placeholder="e.g. 0902" />
+                        </Field>
+                        <Field label="GST rate" id="gst_rate" hint="Used when the shop is GST registered (Settings).">
+                            <Select id="gst_rate" value={form.gst_rate} onChange={set('gst_rate')}>
+                                {GST_RATES.map((r) => <option key={r} value={String(r)}>{r}%{r === 0 ? ' (exempt or nil)' : ''}</option>)}
+                            </Select>
+                        </Field>
+                    </div>
                 </Card>
 
                 <Card className="p-6">
                     <h2 className="mb-5 font-semibold text-slate-900">Pricing and stock</h2>
                     <div className="grid gap-4 sm:grid-cols-2">
-                        <Field label="Shop price (৳)" id="price">
+                        <Field label="Shop price (₹)" id="price">
                             <Input id="price" type="number" min="0" step="0.01" required value={form.price} onChange={set('price')} />
                         </Field>
-                        <Field label="Online price (৳)" id="online_price" hint="Optional. Leave empty to use the shop price on the website.">
+                        <Field label="Online price (₹)" id="online_price" hint="Optional. Leave empty to use the shop price on the website.">
                             <Input id="online_price" type="number" min="0" step="0.01" placeholder={form.price || ''}
                                 value={form.online_price} onChange={set('online_price')} disabled={!form.sell_online} />
                         </Field>
@@ -186,12 +198,12 @@ function ProductEditScreen({ match, history }) {
                                 onChange={set('offer_percentage')} disabled={!form.is_offer} />
                         </Field>
                     </div>
-                    <Checkbox id="is_offer" label="This product is on offer" className="mt-4" checked={form.is_offer} onChange={set('is_offer')} />
+                    <Checkbox id="is_offer" label="This item is on offer" className="mt-4" checked={form.is_offer} onChange={set('is_offer')} />
                 </Card>
 
                 <Card className="p-6">
                     <h2 className="mb-1 font-semibold text-slate-900">Photos</h2>
-                    <p className="mb-4 text-sm text-slate-500">{isNew ? 'Photos upload when you save the product.' : 'Photos upload as soon as you choose them.'}</p>
+                    <p className="mb-4 text-sm text-slate-500">{isNew ? 'Photos upload when you save the item.' : 'Photos upload as soon as you choose them.'}</p>
                     <div className="grid gap-4 sm:grid-cols-3">
                         {IMAGE_FIELDS.map(([field, label]) => {
                             const src = (pending[field] && pending[field].preview) || photos[field]
@@ -223,7 +235,7 @@ function ProductEditScreen({ match, history }) {
 
                 <div className="flex justify-end gap-3">
                     <Button to="/admin/productlist" variant="secondary">Cancel</Button>
-                    <Button type="submit" disabled={saving || Boolean(uploading)}>{saving ? 'Saving…' : isNew ? 'Add product' : 'Save product'}</Button>
+                    <Button type="submit" disabled={saving || Boolean(uploading)}>{saving ? 'Saving…' : isNew ? 'Add item' : 'Save item'}</Button>
                 </div>
             </form>
         </FormContainer>

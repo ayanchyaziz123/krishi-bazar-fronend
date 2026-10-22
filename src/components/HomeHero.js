@@ -1,9 +1,11 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight, Sprout, Truck, ShieldCheck } from 'lucide-react'
+import { useStoreBrand } from './storeBrand'
 
 // Static welcome banner shown when there are no products on offer.
 function HomeHero() {
+    const store = useStoreBrand()
     return (
         <div className="relative flex h-full min-h-[22rem] flex-col justify-center overflow-hidden rounded-3xl bg-gradient-to-br from-brand-800 via-brand-700 to-brand-900 px-8 py-12 text-white shadow-xl shadow-brand-900/20 sm:px-12">
             <div className="pointer-events-none absolute -right-16 -top-16 h-72 w-72 rounded-full bg-brand-400/20 blur-3xl" />
@@ -17,7 +19,7 @@ function HomeHero() {
                 Fresh, honest food from the people who grow it
             </h1>
             <p className="relative mt-4 max-w-md text-brand-100">
-                Rice, spices, pickles, tea and handcrafted goods, sourced directly from farmers and artisans in Sylhet.
+                Rice, spices, pickles, tea and handcrafted goods, sourced directly from farmers and artisans{store.location ? ` in ${store.location}` : ''}.
             </p>
             <div className="relative mt-8 flex flex-wrap items-center gap-4">
                 <a href="#products" onClick={(e) => { e.preventDefault(); document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' }) }}
@@ -29,7 +31,7 @@ function HomeHero() {
                 </Link>
             </div>
             <div className="relative mt-10 flex flex-wrap gap-x-6 gap-y-2 text-sm text-brand-100">
-                <span className="flex items-center gap-2"><Truck className="h-4 w-4" /> Delivery across Bangladesh</span>
+                <span className="flex items-center gap-2"><Truck className="h-4 w-4" /> Delivery across India</span>
                 <span className="flex items-center gap-2"><ShieldCheck className="h-4 w-4" /> Quality checked</span>
             </div>
         </div>

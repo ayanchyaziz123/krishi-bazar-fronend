@@ -1,110 +1,80 @@
 import React, { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
-import { Trash2, ShoppingBag, ArrowRight } from 'lucide-react'
-import { Container, PageHeader, Card, Button, Select, formatTk } from '../components/ui'
+import { Trash2, ShoppingCart, Minus, Plus } from 'lucide-react'
+import { Container, formatINR } from '../components/ui'
 import { addToCart, removeFromCart } from '../actions/cartActions'
-
-const unitPrice = (item) => item.offer_percentage
-    ? parseFloat(item.price - ((item.price * item.offer_percentage) / 100)).toFixed(2)
-    : item.price
+import { cartTotals, qtyStep, qtyText, unitPrice } from '../components/shop/checkout'
+import { checkoutButton } from '../components/CheckoutSteps'
 
 function CartScreen({ match, location, history }) {
     const productId = match.params.id
-    const qty = location.search ? Number(location.search.split('=')[1]) : 1
+    const qty = location.search ? Number(new URLSearchParams(location.search).get('qty')) || 1 : 1
     const dispatch = useDispatch()
-
-    const cart = useSelector(state => state.cart)
-    const { cartItems } = cart
+    const { cartItems } = useSelector(state => state.cart)
 
     useEffect(() => {
-        if (productId) {
-            dispatch(addToCart(productId, qty))
-        }
+        if (productId) dispatch(addToCart(productId, qty))
     }, [dispatch, productId, qty])
 
-    const removeFromCartHandler = (id) => {
-        dispatch(removeFromCart(id))
-    }
+    const totals = cartTotals(cartItems)
 
-    const checkoutHandler = () => {
-        history.push('/login?redirect=shipping')
+    if (cartItems.length === 0) {
+        return (
+            <Container className="max-w-3xl">
+                <div className="flex flex-col items-center rounded-3xl bg-white px-6 py-20 text-center shadow-xs ring-1 ring-slate-200/70">
+                    <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-50 text-brand-600"><ShoppingCart className="h-8 w-8" /></span>
+                    <h1 className="mt-5 text-lg font-bold text-slate-900">Your cart is empty</h1>
+                    <p className="mt-1 text-sm text-slate-500">Looks like you haven't added anything yet.</p>
+                    <Link to="/" className="mt-6 inline-flex h-11 items-center rounded-xl bg-brand-600 px-6 font-semibold text-white hover:bg-brand-700">Start shopping</Link>
+                </div>
+            </Container>
+        )
     }
-
-    const itemCount = cartItems.reduce((acc, item) => acc + item.qty, 0)
-    const total = cartItems.reduce((acc, item) => acc + item.qty * unitPrice(item), 0).toFixed(2)
 
     return (
-        <Container>
-            <PageHeader title="Shopping cart" subtitle={itemCount ? `${itemCount} ${itemCount === 1 ? 'item' : 'items'} in your cart` : null} />
-
-            {cartItems.length === 0 ? (
-                <Card className="flex flex-col items-center px-6 py-20 text-center">
-                    <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
-                        <ShoppingBag className="h-8 w-8" />
-                    </span>
-                    <h2 className="mt-5 text-lg font-semibold text-slate-900">Your cart is empty</h2>
-                    <p className="mt-1 text-sm text-slate-500">Looks like you haven't added anything yet.</p>
-                    <Button to="/" className="mt-6">Start shopping</Button>
-                </Card>
-            ) : (
-                <div className="grid gap-8 lg:grid-cols-[1fr_22rem]">
-                    <Card className="divide-y divide-slate-100">
-                        {cartItems.map(item => (
-                            <div key={item.product} className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center">
-                                <Link to={`/product/${item.product}`} className="flex h-24 w-28 shrink-0 items-center justify-center rounded-xl bg-slate-50 p-2">
-                                    <img src={item.image} alt={item.name} className="max-h-full max-w-full object-contain" />
-                                </Link>
-                                <div className="min-w-0 flex-1">
-                                    <Link to={`/product/${item.product}`} className="font-semibold text-slate-900 hover:text-brand-600">{item.name}</Link>
-                                    <div className="mt-1 flex items-baseline gap-2 text-sm">
-                                        <span className="font-semibold text-slate-900">{formatTk(unitPrice(item))}</span>
-                                        {item.offer_percentage ? <span className="text-slate-400 line-through">{formatTk(item.price)}</span> : null}
-                                    </div>
+        <Container className="max-w-3xl space-y-4">
+            <h1 className="hidden text-2xl font-bold tracking-tight text-slate-900 md:block">My cart</h1>
+            <p className="text-sm text-slate-500">{totals.count} {totals.count === 1 ? 'item' : 'items'}</p>
+            <ul className="space-y-3">
+                {cartItems.map((item) => {
+                    const unit = unitPrice(item)
+                    const n = Number(item.qty)
+                    return (
+                        <li key={item.product} className="flex gap-4 rounded-2xl bg-white p-3 shadow-xs ring-1 ring-slate-200/70">
+                            <Link to={`/product/${item.product}`} className="h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-slate-50">
+                                {item.image && <img src={item.image} alt="" className="h-full w-full object-cover" />}
+                            </Link>
+                            <div className="flex min-w-0 flex-1 flex-col">
+                                <Link to={`/product/${item.product}`} className="line-clamp-2 font-bold leading-snug text-slate-900">{item.name}</Link>
+                                <div className="mt-1 flex items-baseline gap-2">
+                                    <span className="text-lg font-extrabold text-red-600">{formatINR(unit)}{item.sold_by_weight && <span className="text-sm font-semibold text-slate-500"> / {item.unit || 'kg'}</span>}</span>
+                                    {item.offer_percentage > 0 && <span className="text-sm text-slate-400 line-through">{formatINR(item.price)}</span>}
                                 </div>
-                                <div className="flex items-center gap-3">
-                                    <Select
-                                        value={item.qty}
-                                        onChange={(e) => dispatch(addToCart(item.product, Number(e.target.value)))}
-                                        className="h-10 w-24"
-                                        aria-label="Quantity"
-                                    >
-                                        {[...Array(item.countInStock).keys()].map((x) => (
-                                            <option key={x + 1} value={x + 1}>{x + 1}</option>
-                                        ))}
-                                    </Select>
-                                    <Button
-                                        variant="danger-soft"
-                                        size="icon"
-                                        onClick={() => removeFromCartHandler(item.product)}
-                                        aria-label="Remove"
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
+                                <div className="mt-auto flex items-center gap-2 pt-2">
+                                    <div className="inline-flex h-9 items-center rounded-xl ring-1 ring-slate-200">
+                                        <button type="button" aria-label="One less" disabled={n <= qtyStep(item)} onClick={() => dispatch(addToCart(item.product, n - qtyStep(item)))}
+                                            className="flex h-full w-9 items-center justify-center disabled:text-slate-300"><Minus className="h-4 w-4" /></button>
+                                        <span className="min-w-7 px-1 text-center text-sm font-semibold tabular-nums">{qtyText(n, item)}</span>
+                                        <button type="button" aria-label="One more" disabled={n + qtyStep(item) > item.countInStock} onClick={() => dispatch(addToCart(item.product, n + qtyStep(item)))}
+                                            className="flex h-full w-9 items-center justify-center disabled:text-slate-300"><Plus className="h-4 w-4" /></button>
+                                    </div>
+                                    <button type="button" onClick={() => dispatch(removeFromCart(item.product))} aria-label={`Remove ${item.name}`}
+                                        className="ml-auto flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 ring-1 ring-slate-200 hover:bg-rose-50 hover:text-rose-600"><Trash2 className="h-4 w-4" /></button>
                                 </div>
                             </div>
-                        ))}
-                    </Card>
-
-                    <Card className="h-fit p-6 lg:sticky lg:top-32">
-                        <h2 className="font-semibold text-slate-900">Order summary</h2>
-                        <dl className="mt-5 space-y-3 text-sm">
-                            <div className="flex justify-between"><dt className="text-slate-500">Items</dt><dd className="font-medium">{itemCount}</dd></div>
-                            <div className="flex justify-between border-t border-slate-100 pt-3 text-base"><dt className="font-semibold">Subtotal</dt><dd className="font-bold">{formatTk(total)}</dd></div>
-                        </dl>
-                        <Button
-                            block
-                            size="lg"
-                            className="mt-6"
-                            disabled={cartItems.length === 0}
-                            onClick={checkoutHandler}
-                        >
-                            Proceed to checkout <ArrowRight className="h-4 w-4" />
-                        </Button>
-                        <Link to="/" className="mt-4 block text-center text-sm font-medium text-slate-500 hover:text-slate-900">Continue shopping</Link>
-                    </Card>
+                        </li>
+                    )
+                })}
+            </ul>
+            <div className="flex items-center gap-4 rounded-2xl bg-white p-4 shadow-xs ring-1 ring-slate-200/70">
+                <div>
+                    <p className="text-lg font-extrabold text-slate-900">{formatINR(totals.items)}</p>
+                    <p className="text-xs text-slate-500">{totals.saved > 0 ? `You save ${formatINR(totals.saved)} · ` : ''}Delivery and tax at checkout</p>
                 </div>
-            )}
+                <button type="button" onClick={() => history.push('/login?redirect=shipping')} className={`${checkoutButton} ml-auto`}>Checkout</button>
+            </div>
+            <Link to="/" className="block text-center text-sm font-medium text-slate-500 hover:text-slate-900">Continue shopping</Link>
         </Container>
     )
 }

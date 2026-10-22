@@ -2,17 +2,17 @@ import React, { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import axios from 'axios'
 import { MessageCircle, X, Send, Sprout, RotateCcw } from 'lucide-react'
-import { cn, formatTk } from './ui'
+import { cn, formatINR } from './ui'
 
 const STORAGE_KEY = 'krishi-chat'
 const WELCOME = {
     role: 'assistant',
-    content: "Hi! I'm the Krishi Bazar assistant. Ask me what to cook, what to gift, or what fits your budget, and I'll suggest products from the shop.",
+    content: "Hi! I'm the shop assistant. Ask me what to cook, what to gift, or what fits your budget, and I'll suggest products from the shop.",
     welcome: true,
 }
 const SUGGESTIONS = [
     'What goes well with rice for a family dinner?',
-    'Gift ideas under ৳1,500',
+    'Gift ideas under ₹1,500',
     'How do I use hathkora?',
 ]
 
@@ -36,7 +36,7 @@ function ProductChip({ product }) {
             <span className="min-w-0 flex-1">
                 <span className="block truncate text-xs font-semibold text-slate-900">{product.name}</span>
                 <span className="block text-xs text-slate-500">
-                    {formatTk(product.price)}{product.weight ? ` · ${product.weight}` : ''}
+                    {formatINR(product.price)}{product.weight ? ` · ${product.weight}` : ''}
                     {!product.inStock && <span className="text-rose-600"> · out of stock</span>}
                 </span>
             </span>
@@ -46,6 +46,12 @@ function ProductChip({ product }) {
 
 function ChatAssistant() {
     const [open, setOpen] = useState(false)
+    // On phones the button lives in the menu (the tab bar takes the bottom of the screen).
+    useEffect(() => {
+        const show = () => setOpen(true)
+        window.addEventListener('open-assistant', show)
+        return () => window.removeEventListener('open-assistant', show)
+    }, [])
     const [messages, setMessages] = useState(loadHistory)
     const [input, setInput] = useState('')
     const [sending, setSending] = useState(false)
@@ -190,7 +196,7 @@ function ChatAssistant() {
             <button
                 type="button"
                 onClick={() => setOpen((o) => !o)}
-                className="fixed bottom-6 right-6 z-50 flex h-14 items-center gap-2 rounded-full bg-brand-600 pl-4 pr-5 text-sm font-semibold text-white shadow-xl shadow-brand-600/30 transition hover:-translate-y-0.5 hover:bg-brand-700"
+                className="fixed bottom-6 right-6 z-50 hidden h-14 items-center gap-2 rounded-full md:flex bg-brand-600 pl-4 pr-5 text-sm font-semibold text-white shadow-xl shadow-brand-600/30 transition hover:-translate-y-0.5 hover:bg-brand-700"
                 aria-label={open ? 'Close shopping assistant' : 'Open shopping assistant'}
             >
                 {open ? <X className="h-5 w-5" /> : <MessageCircle className="h-5 w-5" />}

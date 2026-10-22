@@ -18,9 +18,14 @@ export const addToCart = (id, qty) => async (dispatch, getState) => {
             product: data.product._id,
             name: data.product.name,
             image: data.product.image,
-            price: data.product.price - ((data.product.price * data.product.offer_percentage) / 100),
-            offer_percentage: data.product.offer_percentage,
+            // The website price before any offer; the cart applies the offer once.
+            price: Number(data.product.price),
+            offer_percentage: data.product.is_offer ? data.product.offer_percentage : 0,
             countInStock: data.product.countInStock,
+            // Loose items (sold by weight) come in steps of 0.5 online.
+            sold_by_weight: Boolean(data.product.sold_by_weight),
+            unit: data.product.unit || '',
+            gst_rate: Number(data.product.gst_rate) || 0,
             qty
         }
     })

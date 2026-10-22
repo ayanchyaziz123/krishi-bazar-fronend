@@ -43,7 +43,7 @@ class ErrorBoundary extends React.Component {
                     </h1>
                     <p className="mt-2 text-sm text-slate-600">
                         {stale
-                            ? 'Krishi Bazar was updated while this page was open. Reload to get the latest version.'
+                            ? 'The site was updated while this page was open. Reload to get the latest version.'
                             : 'Nothing you saved has been lost. Try again, or go back to the previous page.'}
                     </p>
                     <div className="mt-6 flex flex-wrap justify-center gap-2">

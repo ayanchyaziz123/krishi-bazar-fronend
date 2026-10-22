@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { isManagerRole, roleOf } from '../admin_components/roles'
 import {
     PRODUCT_LIST_REQUEST,
     PRODUCT_LIST_SUCCESS,
@@ -68,7 +69,7 @@ export const listCoupons = () => async (dispatch) => {
 // Admins send their login so the server also returns products hidden from the website.
 const adminConfig = (getState) => {
     const { userInfo } = getState().userLogin
-    return userInfo && userInfo.isAdmin ? { headers: { Authorization: `Bearer ${userInfo.token}` } } : {}
+    return isManagerRole(roleOf(userInfo)) ? { headers: { Authorization: `Bearer ${userInfo.token}` } } : {}
 }
 
 // `allProducts` lists products hidden from the website too. Only admins get them.

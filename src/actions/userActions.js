@@ -79,6 +79,7 @@ export const login = (email, password) => async (dispatch) => {
 
 export const logout = () => (dispatch) => {
     localStorage.removeItem('userInfo')
+    localStorage.removeItem('activeBusiness')
     dispatch({ type: USER_LOGOUT })
     dispatch({ type: USER_DETAILS_RESET })
     dispatch({ type: ORDER_LIST_MY_RESET })
@@ -333,4 +334,19 @@ export const updateUser = (user) => async (dispatch, getState) => {
                 : error.message,
         })
     }
+}
+// Reload the businesses this person works in and their role in each, so a role
+// changed or removed by a manager shows up without signing in again.
+export const refreshBusinesses = () => async (dispatch, getState) => {
+    const { userLogin: { userInfo } } = getState()
+    if (!userInfo || !userInfo.token) return
+    try {
+        const { data } = await axios.get('/api/users/businesses/', { headers: { Authorization: `Bearer ${userInfo.token}` } })
+        const current = getState().userLogin.userInfo
+        if (!current || current.token !== userInfo.token) return
+        if (JSON.stringify(current.businesses) === JSON.stringify(data)) return
+        const updated = { ...current, businesses: data }
+        localStorage.setItem('userInfo', JSON.stringify(updated))
+        dispatch({ type: USER_LOGIN_SUCCESS, payload: updated })
+    } catch (e) { /* offline or signed out: keep what we have */ }
 }

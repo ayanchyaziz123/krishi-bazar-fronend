@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
-import { Sprout, Store, Boxes, ShoppingCart, LayoutDashboard } from 'lucide-react'
+import { Store, Boxes, ShoppingCart, LayoutDashboard, Building2, ChevronRight } from 'lucide-react'
 import { Alert, Button, Field, Input } from '../components/ui'
 import { login, logout } from '../actions/userActions'
-import { canOpen, homeFor, roleOf } from '../admin_components/roles'
+import { ROLE_LABELS, canOpen, hasChosenBusiness, homeFor, roleOf, setActiveBusiness } from '../admin_components/roles'
+import { StoreLogo, StoreName, useStoreBrand } from '../components/storeBrand'
 
 // Sign-in for shop staff (managers, cashiers, stock keepers, online orders).
 // Customers sign in from the shop header instead. Each role lands on its own page.
@@ -24,8 +25,10 @@ function StaffLoginScreen({ location, history }) {
     const [password, setPassword] = useState('')
     const [notStaff, setNotStaff] = useState(false)
     const [submitted, setSubmitted] = useState(false)
+    const [choosing, setChoosing] = useState(false)
 
     const dispatch = useDispatch()
+    const store = useStoreBrand()
     const { error, loading, userInfo } = useSelector((state) => state.userLogin)
 
     useEffect(() => {
@@ -40,8 +43,18 @@ function StaffLoginScreen({ location, history }) {
             }
             return
         }
+        // Someone who works in several businesses picks one first (once per device).
+        if (submitted && userInfo.businesses && userInfo.businesses.length > 1 && !hasChosenBusiness(userInfo)) {
+            setChoosing(true)
+            return
+        }
         history.replace(wanted && canOpen(role, wanted) ? wanted : homeFor(role))
     }, [userInfo, wanted, history, dispatch, submitted])
+
+    const choose = (business) => {
+        setActiveBusiness(business.slug)
+        history.replace(homeFor(business.role))
+    }
 
     const submit = (e) => {
         e.preventDefault()
@@ -51,34 +64,47 @@ function StaffLoginScreen({ location, history }) {
     }
 
     return (
-        <div className="flex min-h-screen bg-[#f3f4f6]">
-            {/* Brand panel */}
-            <aside className="hidden w-[26rem] shrink-0 flex-col justify-between bg-[#16191d] p-10 text-white lg:flex">
-                <div className="flex items-center gap-2.5 text-lg font-bold">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-500"><Sprout className="h-5 w-5" /></span>
-                    Krishi <span className="text-brand-400">Bazar</span>
+        <div className="theme-dark flex min-h-screen bg-[var(--admin-bg)] text-slate-900">
+            {/* Brand panel, in the store's own colours */}
+            <aside className="keep-colors relative hidden w-1/2 max-w-[56rem] shrink-0 flex-col justify-between overflow-hidden bg-[#0c0e13] p-12 text-white lg:flex"
+                style={{ backgroundImage: 'radial-gradient(circle at 18% 12%, color-mix(in oklab, var(--brand-600) 55%, transparent) 0, transparent 46%), radial-gradient(circle at 88% 92%, color-mix(in oklab, var(--brand-800) 70%, transparent) 0, transparent 52%)' }}>
+                <div className="flex items-center gap-3">
+                    <StoreLogo className="h-10 w-10 rounded-xl shadow-lg shadow-black/30" />
+                    <div className="leading-tight">
+                        <p className="font-bold"><StoreName accentClassName="text-brand-300" /></p>
+                        <p className="text-xs text-white/60">{store.tagline}</p>
+                    </div>
                 </div>
-                <div>
-                    <h2 className="text-3xl font-bold leading-tight">Shop staff</h2>
-                    <p className="mt-3 text-slate-400">One sign-in for everyone who runs the shop. You'll go straight to the pages your role uses.</p>
-                    <ul className="mt-8 space-y-3 text-sm text-slate-300">
-                        <li className="flex items-center gap-3"><Store className="h-4 w-4 text-brand-400" /> Cashiers open the counter</li>
-                        <li className="flex items-center gap-3"><Boxes className="h-4 w-4 text-brand-400" /> Stock keepers open stock and deliveries</li>
-                        <li className="flex items-center gap-3"><ShoppingCart className="h-4 w-4 text-brand-400" /> Online orders staff open website orders</li>
-                        <li className="flex items-center gap-3"><LayoutDashboard className="h-4 w-4 text-brand-400" /> Managers open the dashboard</li>
+                <div className="max-w-md">
+                    <h2 className="text-4xl font-bold leading-tight tracking-tight">Everything the shop needs, in one sign-in.</h2>
+                    <ul className="mt-10 space-y-5">
+                        {[
+                            [Store, 'Counter', 'Cashiers go straight to the till.'],
+                            [Boxes, 'Stock and deliveries', 'Batches, expiry dates and supplier receipts.'],
+                            [ShoppingCart, 'Online orders', 'Website orders and customer messages.'],
+                            [LayoutDashboard, 'Manager dashboard', 'Today\'s sales, profit and what needs attention.'],
+                        ].map(([Icon, title, text]) => (
+                            <li key={title} className="flex items-start gap-4">
+                                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5"><Icon className="h-[18px] w-[18px]" /></span>
+                                <span>
+                                    <span className="block font-semibold">{title}</span>
+                                    <span className="block text-sm text-white/60">{text}</span>
+                                </span>
+                            </li>
+                        ))}
                     </ul>
                 </div>
-                <p className="text-xs text-slate-500">On a shared computer you're signed out automatically after a while without activity.</p>
+                <p className="text-xs text-white/50">{store.location ? `${store.name} · ${store.location}. ` : ''}On a shared computer you're signed out automatically after a while without activity.</p>
             </aside>
 
             {/* Form */}
             <main className="flex flex-1 items-center justify-center px-4 py-10">
                 <div className="w-full max-w-sm">
                     <div className="mb-8 lg:hidden">
-                        <span className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-[#16191d] text-brand-400"><Sprout className="h-5 w-5" /></span>
+                        <StoreLogo className="mb-4 h-11 w-11 rounded-xl" />
                     </div>
                     <h1 className="text-2xl font-bold tracking-tight text-slate-900">Staff sign-in</h1>
-                    <p className="mt-1 text-sm text-slate-500">Krishi Bazar · Sylhet</p>
+                    <p className="mt-1 text-sm text-slate-500">{store.name}{store.location ? ` · ${store.location}` : ''}</p>
 
                     {idle && !submitted && (
                         <Alert variant="info" className="mt-6">
@@ -87,7 +113,7 @@ function StaffLoginScreen({ location, history }) {
                     )}
                     {notStaff && (
                         <Alert variant="danger" className="mt-6">
-                            That is a customer account. This page is for shop staff.{' '}
+                            This account has no staff access to an open business. If you work here, ask your manager to add you.{' '}
                             <Link to="/login" className="font-semibold underline">Customers sign in here</Link>.
                         </Alert>
                     )}
@@ -99,6 +125,27 @@ function StaffLoginScreen({ location, history }) {
                         </Alert>
                     )}
 
+                    {choosing ? (
+                        <div className="mt-6">
+                            <p className="text-sm font-medium text-slate-700">You work in more than one business. Which one do you want to open?</p>
+                            <ul className="mt-3 space-y-2">
+                                {userInfo.businesses.map((b) => (
+                                    <li key={b.slug}>
+                                        <button type="button" onClick={() => choose(b)}
+                                            className="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-left transition hover:border-brand-500 hover:bg-brand-50/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
+                                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-100 text-brand-700"><Building2 className="h-4 w-4" /></span>
+                                            <span className="min-w-0 flex-1">
+                                                <span className="block truncate text-sm font-semibold text-slate-900">{b.name}</span>
+                                                <span className="block truncate text-xs text-slate-500">{ROLE_LABELS[b.role]}{b.location ? ` · ${b.location}` : ''}</span>
+                                            </span>
+                                            <ChevronRight className="h-4 w-4 text-slate-300" />
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>
+                            <p className="mt-4 text-xs text-slate-500">You can switch at any time from your account menu.</p>
+                        </div>
+                    ) : (
                     <form onSubmit={submit} className="mt-6 space-y-4">
                         <Field label="Email" id="staff-email">
                             <Input id="staff-email" type="email" autoComplete="username" autoFocus required
@@ -110,6 +157,7 @@ function StaffLoginScreen({ location, history }) {
                         </Field>
                         <Button type="submit" block size="lg" disabled={loading}>{loading ? 'Signing in…' : 'Sign in'}</Button>
                     </form>
+                    )}
 
                     <p className="mt-8 text-center text-sm text-slate-500">
                         Not staff? <Link to="/" className="font-semibold text-brand-700 hover:underline">Go to the shop</Link>

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import axios from 'axios'
 import { HandHeart, MapPin, Quote } from 'lucide-react'
-import { Card, formatTk } from './ui'
+import { Card, formatINR } from './ui'
 
 function Avatar({ farmer }) {
     if (farmer.photo) {
@@ -80,7 +80,7 @@ function MeetTheFarmer() {
                                         {p.image && <img src={p.image} alt="" className="absolute inset-0 h-full w-full object-cover" />}
                                     </span>
                                     <span className="min-w-0 flex-1 truncate text-xs font-medium text-slate-800">{p.name}</span>
-                                    <span className="text-xs font-semibold text-slate-900">{formatTk(p.price)}</span>
+                                    <span className="text-xs font-semibold text-slate-900">{formatINR(p.price)}</span>
                                 </Link>
                             ))}
                         </div>

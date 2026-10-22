@@ -14,6 +14,10 @@ import BrandScreen from './screens/BrandScreen'
 import UserListScreen from './screens/UserListScreen'
 import UserEditScreen from './screens/UserEditScreen'
 import AdminContactScreen from './screens/AdminContactScreen'
+import SettingsScreen from './screens/SettingsScreen'
+import WebsiteScreen from './screens/WebsiteScreen'
+import DeliverySettingsScreen from './screens/DeliverySettingsScreen'
+import GstReportScreen from './screens/GstReportScreen'
 
 // Every admin page, inside the admin frame. This file is loaded separately from the
 // shop, so customers never download the admin pages, charts or text editor.
@@ -37,6 +41,10 @@ function AdminArea() {
         <Redirect from='/admin/userlist' to='/admin/customers' />
         <Route path='/admin/user/:id/edit' component={UserEditScreen} />
         <Route path='/admin/contact' component={AdminContactScreen} />
+        <Route path='/admin/settings' component={SettingsScreen} />
+        <Route path='/admin/delivery' component={DeliverySettingsScreen} />
+        <Route path='/admin/gst' component={GstReportScreen} />
+        <Route path='/admin/website' component={WebsiteScreen} />
         <Redirect to='/dashboard' />
       </Switch>
     </AdminShell>
