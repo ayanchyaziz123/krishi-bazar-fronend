@@ -2,10 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Download, FileText } from 'lucide-react'
 import AdminLayout from '../admin_components/AdminLayout'
 import { Alert, Button, Card, CardHeader, Input, Spinner, Table, Td, Th, formatINR } from '../components/ui'
-import { useAdminGuard, inventoryApi, errorText, todayInDhaka } from '../inventory/api'
+import { useAdminGuard, inventoryApi, errorText, todayInShop } from '../inventory/api'
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`
-const firstOfMonth = () => `${todayInDhaka().slice(0, 8)}01`
+const firstOfMonth = () => `${todayInShop().slice(0, 8)}01`
 
 // A CSV file the CA can open in Excel. Amounts as plain numbers.
 function downloadCsv(name, rows) {
@@ -22,7 +22,7 @@ function GstReportScreen({ history }) {
     const { userInfo, isAdmin } = useAdminGuard(history)
     const api = useMemo(() => inventoryApi(userInfo), [userInfo])
     const [from, setFrom] = useState(firstOfMonth())
-    const [to, setTo] = useState(todayInDhaka())
+    const [to, setTo] = useState(todayInShop())
     const [report, setReport] = useState(null)
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(true)
@@ -58,7 +58,7 @@ function GstReportScreen({ history }) {
                 <div className="flex flex-wrap items-center gap-2">
                     <Input type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} className="!w-40" aria-label="From" />
                     <span className="text-sm text-slate-500">to</span>
-                    <Input type="date" value={to} min={from} max={todayInDhaka()} onChange={(e) => setTo(e.target.value)} className="!w-40" aria-label="To" />
+                    <Input type="date" value={to} min={from} max={todayInShop()} onChange={(e) => setTo(e.target.value)} className="!w-40" aria-label="To" />
                     <Button variant="secondary" disabled={!report} onClick={exportCsv}><Download className="h-4 w-4" /> CSV</Button>
                 </div>
             )}

@@ -39,19 +39,19 @@ export const PAYMENT_METHODS = [
     { value: 'card', label: 'Card' },
 ]
 
-export function todayInDhaka() {
+export function todayInShop() {
     // en-CA formats dates as YYYY-MM-DD.
-    return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dhaka' })
+    return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
 }
 
 export function formatDateTime(iso) {
     if (!iso) return ''
     return new Date(iso).toLocaleString('en-GB', {
-        timeZone: 'Asia/Dhaka', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit',
+        timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit',
     })
 }
 
 export function formatTime(iso) {
     if (!iso) return ''
-    return new Date(iso).toLocaleTimeString('en-GB', { timeZone: 'Asia/Dhaka', hour: 'numeric', minute: '2-digit' })
+    return new Date(iso).toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit' })
 }

@@ -3,7 +3,7 @@ import { Printer, Store, Globe, TrendingUp, Banknote, Smartphone, CreditCard, Wa
 import AdminLayout from '../../admin_components/AdminLayout'
 import { Alert, Badge, Button, Card, CardHeader, Field, Input, Modal, Spinner, Table, Td, Th, cn, formatINR } from '../../components/ui'
 import Receipt, { RefundReceipt } from '../../inventory/Receipt'
-import { useAdminGuard, inventoryApi, errorText, todayInDhaka, formatTime, formatDateTime } from '../../inventory/api'
+import { useAdminGuard, inventoryApi, errorText, todayInShop, formatTime, formatDateTime } from '../../inventory/api'
 
 const TABS = [['all', 'All'], ['shop', 'Counter'], ['online', 'Online']]
 const STATUS_TONE = {
@@ -19,7 +19,7 @@ function SalesScreen({ history }) {
     const { userInfo, isAdmin } = useAdminGuard(history)
     const api = useMemo(() => inventoryApi(userInfo), [userInfo])
 
-    const [date, setDate] = useState(todayInDhaka())
+    const [date, setDate] = useState(todayInShop())
     const [summary, setSummary] = useState(null)
     const [rows, setRows] = useState([])
     const [dues, setDues] = useState([])
@@ -58,7 +58,7 @@ function SalesScreen({ history }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isAdmin])
 
-    const isToday = date === todayInDhaka()
+    const isToday = date === todayInShop()
     const showProfit = Boolean(summary && summary.shop && summary.shop.profit !== undefined)
     const shown = rows.filter((r) => tab === 'all' || r.kind === tab)
     const payments = (summary && summary.payments) || {}
@@ -74,7 +74,7 @@ function SalesScreen({ history }) {
                         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                         <Input value={findBill} onChange={(e) => setFindBill(e.target.value)} placeholder="Find bill #" inputMode="numeric" className="!w-36 pl-9" aria-label="Find a bill by number" />
                     </form>
-                    <Input type="date" value={date} max={todayInDhaka()} onChange={(e) => setDate(e.target.value)} className="!w-44" aria-label="Report date" />
+                    <Input type="date" value={date} max={todayInShop()} onChange={(e) => setDate(e.target.value)} className="!w-44" aria-label="Report date" />
                 </div>
             )}
         >

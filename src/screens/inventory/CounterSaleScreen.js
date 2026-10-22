@@ -3,7 +3,7 @@ import { Search, Minus, Plus, Trash2, Printer, ShoppingBasket, RotateCcw, X, Key
 import { Alert, Button, Card, Input, Modal, Spinner, cn, formatINR } from '../../components/ui'
 import { useCategories } from '../../components/categories'
 import Receipt from '../../inventory/Receipt'
-import { useAdminGuard, inventoryApi, errorText, PAYMENT_METHODS, formatTime, todayInDhaka } from '../../inventory/api'
+import { useAdminGuard, inventoryApi, errorText, PAYMENT_METHODS, formatTime, todayInShop } from '../../inventory/api'
 import { isManagerRole, roleOf } from '../../admin_components/roles'
 import { chargesGst, gstFor, gstOf } from '../../components/shop/gst'
 import { useStoreBrand } from '../../components/storeBrand'
@@ -447,7 +447,7 @@ function CounterSaleScreen({ history }) {
                                 <button type="button" onClick={() => setPast(null)} className="font-semibold underline">Back to today</button>
                             </div>
                             <div className="flex gap-2">
-                                <Input type="date" value={past.date} max={todayInDhaka()} onChange={(e) => setPast((p) => ({ ...p, date: e.target.value }))}
+                                <Input type="date" value={past.date} max={todayInShop()} onChange={(e) => setPast((p) => ({ ...p, date: e.target.value }))}
                                     className="!h-8 flex-1 text-xs" aria-label="Day the sale happened" />
                                 <Input type="time" value={past.time} onChange={(e) => setPast((p) => ({ ...p, time: e.target.value }))}
                                     className="!h-8 !w-28 text-xs" aria-label="Time of the sale" />

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, Trash2, UserPlus, Paperclip, FileText, Search, ChevronRight, Camera, X, ExternalLink } from 'lucide-react'
 import AdminLayout from '../../admin_components/AdminLayout'
 import { Alert, Badge, Button, Card, Field, Input, Modal, Select, Spinner, cn, formatINR } from '../../components/ui'
-import { useAdminGuard, inventoryApi, errorText, formatDateTime, todayInDhaka } from '../../inventory/api'
+import { useAdminGuard, inventoryApi, errorText, formatDateTime, todayInShop } from '../../inventory/api'
 
 const emptyLine = () => ({ key: Math.random(), product: '', qty: '', unit_cost: '', line_total: '', by_total: false, batch_no: '', expiry_date: '' })
 
@@ -33,7 +33,7 @@ function ReceiveStockScreen({ history }) {
 
     const [supplier, setSupplier] = useState('')
     const [invoiceNo, setInvoiceNo] = useState('')
-    const [receivedOn, setReceivedOn] = useState(todayInDhaka())
+    const [receivedOn, setReceivedOn] = useState(todayInShop())
     const [note, setNote] = useState('')
     const [lines, setLines] = useState([emptyLine()])
     const [receipt, setReceipt] = useState(null)
@@ -86,7 +86,7 @@ function ReceiveStockScreen({ history }) {
 
     const reset = () => {
         setLines([emptyLine()]); setInvoiceNo(''); setNote(''); setReceipt(null)
-        setPayment('all'); setPaidAmount(''); setReceivedOn(todayInDhaka())
+        setPayment('all'); setPaidAmount(''); setReceivedOn(todayInShop())
     }
 
     const save = (e) => {
@@ -146,7 +146,7 @@ function ReceiveStockScreen({ history }) {
                                     <Input id="invoice" value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} placeholder="Optional" />
                                 </Field>
                                 <Field label="Delivery date" id="received">
-                                    <Input id="received" type="date" value={receivedOn} max={todayInDhaka()} onChange={(e) => setReceivedOn(e.target.value)} required />
+                                    <Input id="received" type="date" value={receivedOn} max={todayInShop()} onChange={(e) => setReceivedOn(e.target.value)} required />
                                 </Field>
                                 <Field label="Note" id="note">
                                     <Input id="note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional" />

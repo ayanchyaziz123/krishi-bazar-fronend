@@ -7,7 +7,7 @@ import {
     AlertTriangle, PackageX, CalendarClock, HandCoins, Truck, ChevronRight, CheckCircle2, BarChart3, CreditCard, Inbox,
 } from 'lucide-react'
 import { Alert, Badge, Card, EmptyState, Input, Skeleton, cn, formatINR } from '../components/ui'
-import { inventoryApi, errorText, formatTime, todayInDhaka } from '../inventory/api'
+import { inventoryApi, errorText, formatTime, todayInShop } from '../inventory/api'
 import { useStoreBrand } from '../components/storeBrand'
 import KpiCard from '../admin_components/KpiCard'
 import AIInsights from '../admin_components/AIInsights'
@@ -34,7 +34,7 @@ function DashboardScreen() {
     const { userInfo } = useSelector((state) => state.userLogin)
     const api = useMemo(() => inventoryApi(userInfo), [userInfo])
     const store = useStoreBrand()
-    const [day, setDay] = useState(todayInDhaka())
+    const [day, setDay] = useState(todayInShop())
     const [data, setData] = useState(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
@@ -47,7 +47,7 @@ function DashboardScreen() {
             .finally(() => setLoading(false))
     }, [api, day])
 
-    const isToday = day === todayInDhaka()
+    const isToday = day === todayInShop()
     const weekday = new Date(`${day}T00:00:00`).toLocaleDateString('en-GB', { weekday: 'long' })
     const compare = `vs last ${weekday}`
     const t = data && data.today
@@ -65,10 +65,10 @@ function DashboardScreen() {
                 <div className="flex flex-wrap items-center gap-2 text-sm">
                     <label className="flex items-center gap-2">
                         <span className="sr-only">Reporting day</span>
-                        <Input type="date" value={day} max={todayInDhaka()} onChange={(e) => e.target.value && setDay(e.target.value)} className="!h-9 !w-40" aria-label="Reporting day" />
+                        <Input type="date" value={day} max={todayInShop()} onChange={(e) => e.target.value && setDay(e.target.value)} className="!h-9 !w-40" aria-label="Reporting day" />
                     </label>
                     {!isToday && (
-                        <button type="button" onClick={() => setDay(todayInDhaka())} className="h-9 rounded-lg px-2.5 font-medium text-brand-700 hover:bg-brand-50">Today</button>
+                        <button type="button" onClick={() => setDay(todayInShop())} className="h-9 rounded-lg px-2.5 font-medium text-brand-700 hover:bg-brand-50">Today</button>
                     )}
                 </div>
             </div>
