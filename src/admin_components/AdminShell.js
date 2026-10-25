@@ -14,6 +14,7 @@ import { logout, refreshBusinesses } from '../actions/userActions'
 import { ROLE_LABELS, activeBusinessInfo, canOpen, homeFor, isManagerRole, roleOf, switchBusiness } from './roles'
 import { StoreLogo, StoreName, useStoreBrand } from '../components/storeBrand'
 import { formatINR } from '../components/ui'
+import { shopUrl } from '../components/shopSlug'
 
 // Sign out after this long without activity, so the next person at a shared
 // computer can't use the previous login. A warning shows for the last minute.
@@ -438,7 +439,7 @@ function AdminShell({ children }) {
                                             </div>
                                         )}
                                         <MenuItem to="/profile" icon={User}>My account</MenuItem>
-                                        <MenuItem to="/" icon={ExternalLink}>View online shop</MenuItem>
+                                        <MenuItem href={shopUrl(current && current.slug)} icon={ExternalLink}>View online shop</MenuItem>
                                         <MenuItem onClick={toggleFullscreen} icon={isFullscreen ? Minimize : Maximize}>{isFullscreen ? 'Exit full screen' : 'Full screen'}</MenuItem>
                                         <div className="my-1 border-t border-slate-200/70" />
                                         <MenuItem onClick={signOut} icon={LogOut} danger>Log out</MenuItem>
@@ -480,8 +481,9 @@ function AdminShell({ children }) {
     )
 }
 
-function MenuItem({ to, onClick, icon: Icon, danger, children }) {
+function MenuItem({ to, href, onClick, icon: Icon, danger, children }) {
     const cls = cn('flex w-full items-center gap-2.5 px-4 py-2 text-left text-sm transition-colors', danger ? 'text-rose-600 hover:bg-rose-50' : 'text-slate-700 hover:bg-slate-50')
+    if (href) return <a href={href} role="menuitem" className={cls}><Icon className="h-4 w-4 text-current opacity-70" />{children}</a>
     if (to) return <Link to={to} role="menuitem" className={cls}><Icon className="h-4 w-4 text-current opacity-70" />{children}</Link>
     return <button type="button" role="menuitem" onClick={onClick} className={cls}><Icon className="h-4 w-4 text-current opacity-70" />{children}</button>
 }

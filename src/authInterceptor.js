@@ -2,17 +2,18 @@ import axios from 'axios'
 import { logout } from './actions/userActions'
 import { activeBusiness } from './admin_components/roles'
 import { isPreview } from './components/siteContent'
+import { shopSlug } from './components/shopSlug'
 
 const inAdminArea = () => /^#\/(admin|dashboard|brand)/.test(window.location.hash)
 
 // Admin pages tell the server which business they are working in. The server checks this
 // against the person's own memberships, so it only chooses between businesses they belong to.
-// The public shop is chosen separately (by its web address, from Phase 5); the website
-// editor's preview frame shows the business being edited.
+// The public shop is chosen by its web address (?shop=gbi); the website editor's preview
+// frame shows the business being edited.
 export function installBusinessHeader(store) {
     axios.interceptors.request.use((config) => {
         const { userInfo } = store.getState().userLogin
-        const slug = (inAdminArea() || isPreview()) && activeBusiness(userInfo)
+        const slug = (inAdminArea() || isPreview()) ? activeBusiness(userInfo) : shopSlug()
         if (slug && config.url && config.url.startsWith('/api/')) {
             config.headers = { ...config.headers, 'X-Business': slug }
         }

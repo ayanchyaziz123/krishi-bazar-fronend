@@ -1,5 +1,6 @@
 import { createStore, combineReducers, applyMiddleware } from 'redux'
 import thunk from 'redux-thunk'
+import { resetCartIfShopChanged } from './components/shopSlug'
 import { composeWithDevTools } from 'redux-devtools-extension'
 import {
     couponListReducer,
@@ -71,6 +72,9 @@ const reducer = combineReducers({
 
 })
 
+
+// A cart belongs to one shop: empty it when the visitor arrives at a different shop.
+resetCartIfShopChanged()
 
 const cartItemsFromStorage = localStorage.getItem('cartItems') ?
     JSON.parse(localStorage.getItem('cartItems')) : []
