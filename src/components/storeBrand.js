@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import axios from 'axios'
 import { Sprout } from 'lucide-react'
+import { activeBusiness } from '../admin_components/roles'
+import { shopSlug } from './shopSlug'
 
 // The store's name, details and colour, read from the server and shared by every page.
 // The colour becomes the brand palette (brand-50 … brand-950) used across the site.
@@ -96,31 +98,65 @@ export function applyBrand(store) {
     if (store && store.name && !document.documentElement.dataset.seoTitle) document.title = store.tagline ? `${store.name} · ${store.tagline}` : store.name
 }
 
-function readCache() {
-    try { return { ...DEFAULT_STORE, ...JSON.parse(localStorage.getItem(CACHE_KEY) || '{}') } } catch (e) { return DEFAULT_STORE }
+// Which business's details the page needs: in the admin, the signed-in person's business;
+// elsewhere, the shop in the web address. Matches the business the server is asked for.
+const ADMIN_AREA = /^#\/(admin|dashboard|brand)/
+function brandKey() {
+    if (ADMIN_AREA.test(window.location.hash || '')) {
+        try { return `staff:${activeBusiness(JSON.parse(localStorage.getItem('userInfo') || 'null')) || ''}` } catch (e) { return 'staff:' }
+    }
+    return `shop:${shopSlug()}`
 }
 
-let current = readCache()
+// The last brand seen for each business, so a page paints at once with the right one.
+function readCache(key) {
+    try {
+        const all = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}')
+        return all && all[key] ? { ...DEFAULT_STORE, ...all[key] } : DEFAULT_STORE
+    } catch (e) { return DEFAULT_STORE }
+}
+
+let loadedKey = typeof window !== 'undefined' ? brandKey() : ''
+let current = readCache(loadedKey)
 const listeners = new Set()
 
-function publish(next) {
+function publish(next, key) {
+    if (key !== loadedKey) return // the page has moved on to another business
     current = { ...DEFAULT_STORE, ...next }
-    try { localStorage.setItem(CACHE_KEY, JSON.stringify(current)) } catch (e) { /* storage unavailable */ }
+    try {
+        const all = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}')
+        localStorage.setItem(CACHE_KEY, JSON.stringify({ ...(all && !all.name ? all : {}), [key]: current }))
+    } catch (e) { /* storage unavailable */ }
     applyBrand(current)
     listeners.forEach((fn) => fn(current))
+}
+
+function load() {
+    const key = loadedKey
+    axios.get('/api/store/').then(({ data }) => publish(data, key)).catch(() => {})
 }
 
 // Called once at start-up: paint with the last known brand at once, then refresh it.
 export function initStoreBrand() {
     applyBrand(current)
-    // Moving between the shop and the admin switches between the two brands.
-    window.addEventListener('hashchange', () => { applyBrand(current); listeners.forEach((fn) => fn({ ...current })) })
-    axios.get('/api/store/').then(({ data }) => publish(data)).catch(() => {})
+    window.addEventListener('hashchange', () => {
+        const key = brandKey()
+        if (key !== loadedKey) {
+            // Signing in, or moving between the shop and the admin, can mean another business.
+            loadedKey = key
+            current = readCache(key)
+            load()
+        }
+        // Moving between the shop and the admin switches between the two brands.
+        applyBrand(current)
+        listeners.forEach((fn) => fn({ ...current }))
+    })
+    load()
 }
 
 export function saveStoreBrand(changes, token) {
     return axios.put('/api/store/', changes, { headers: { Authorization: `Bearer ${token}` } })
-        .then(({ data }) => { publish(data); return data })
+        .then(({ data }) => { publish(data, loadedKey); return data })
 }
 
 // Preview a colour without saving it (the settings page uses this while choosing).
