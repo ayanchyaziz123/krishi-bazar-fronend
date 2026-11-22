@@ -48,6 +48,7 @@ input[type="range"].range {
   body * { visibility: hidden; }
   .print-area, .print-area * { visibility: visible; }
   .print-area { position: absolute; left: 0; top: 0; width: 80mm; }
+  .print-area.print-full { width: 100%; }
 }
 
 /* ------------------------------------------------------------------------------------
@@ -209,3 +210,16 @@ input[type="range"].range {
 
 /* Numbers in figures and tables line up in columns. */
 .figure { font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+
+/* A thin, quiet scrollbar for busy screens like the counter (even when the Mac is set to
+   always show scrollbars). It darkens on hover so it can still be grabbed. */
+/* Firefox: the standard settings. Chrome and Safari use the 6px style below (Chrome ignores
+   it when the standard settings are present, so those are kept to Firefox only). */
+@supports not selector(::-webkit-scrollbar) {
+  .thin-scroll { scrollbar-width: thin; scrollbar-color: rgb(203 213 225 / 0.7) transparent; }
+  .thin-scroll:hover { scrollbar-color: rgb(148 163 184) transparent; }
+}
+.thin-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+.thin-scroll::-webkit-scrollbar-track { background: transparent; }
+.thin-scroll::-webkit-scrollbar-thumb { background: rgb(203 213 225 / 0.7); border-radius: 9999px; }
+.thin-scroll:hover::-webkit-scrollbar-thumb { background: rgb(148 163 184); }

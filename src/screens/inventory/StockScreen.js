@@ -25,7 +25,8 @@ function StockScreen({ history }) {
     const load = () => {
         setLoading(true)
         Promise.all([api.get('products/'), api.get('summary/')])
-            .then(([p, s]) => { setProducts(p); setSummary(s); setError('') })
+            // Combos have no stock of their own: their products are counted here instead.
+            .then(([p, s]) => { setProducts(p.filter((x) => !x.is_combo)); setSummary(s); setError('') })
             .catch((e) => setError(errorText(e)))
             .finally(() => setLoading(false))
     }
@@ -62,7 +63,7 @@ function StockScreen({ history }) {
                 <>
                     <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                         <StatCard icon={Coins} label="Stock value at buying price" value={formatINR(summary.stock_value)}
-                            note={summary.missing_cost_price ? `${summary.missing_cost_price} items have no buying price` : 'All items priced'}
+                            note={summary.missing_cost_price ? `${summary.missing_cost_price} products have no buying price` : 'All products priced'}
                             onClick={summary.missing_cost_price ? () => setFilter('nocost') : undefined} />
                         <StatCard icon={AlertTriangle} label="Low or out of stock" value={summary.low_stock.length}
                             tone={summary.low_stock.length ? 'amber' : 'slate'} onClick={() => setFilter('low')} note="At or below reorder level" />
@@ -90,10 +91,10 @@ function StockScreen({ history }) {
             <div className="mb-4 flex flex-col gap-3 sm:flex-row">
                 <div className="relative flex-1">
                     <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search items" className="pl-10" />
+                    <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search products" className="pl-10" />
                 </div>
                 <Select value={filter} onChange={(e) => setFilter(e.target.value)} className="sm:w-56">
-                    <option value="all">All items</option>
+                    <option value="all">All products</option>
                     <option value="low">Low or out of stock</option>
                     <option value="out">Out of stock</option>
                     <option value="expiring">Expiring soon</option>
@@ -104,7 +105,7 @@ function StockScreen({ history }) {
             <Table>
                 <thead>
                     <tr>
-                        <Th>Item</Th>
+                        <Th>Product</Th>
                         <Th className="text-right">In stock</Th>
                         <Th className="text-right">Warn at</Th>
                         <Th className="text-right">Buying price</Th>
@@ -166,7 +167,7 @@ function StockScreen({ history }) {
                         )
                     })}
                     {visible.length === 0 && !loading && (
-                        <tr><Td colSpan={6} className="py-10 text-center text-slate-500">No items match.</Td></tr>
+                        <tr><Td colSpan={6} className="py-10 text-center text-slate-500">No products match.</Td></tr>
                     )}
                 </tbody>
             </Table>
@@ -229,7 +230,7 @@ function EditModal({ api, product, onClose, onSaved }) {
     return (
         <Modal show onClose={onClose} title={`Edit ${product.name}`}>
             <form onSubmit={save} className="space-y-4">
-                <Field label="Sold per" id="unit" hint="For loose items sold by weight use kg (or g, litre).">
+                <Field label="Sold per" id="unit" hint="For loose products sold by weight use kg (or g, litre).">
                     <Input id="unit" list="unit-suggestions" value={unit} onChange={(e) => setUnit(e.target.value)} required />
                     <datalist id="unit-suggestions">{UNIT_SUGGESTIONS.map((u) => <option key={u} value={u} />)}</datalist>
                 </Field>
@@ -260,7 +261,7 @@ function EditModal({ api, product, onClose, onSaved }) {
                 <Field label="Warn when stock falls to" id="reorder">
                     <Input id="reorder" type="number" min="0" step="1" value={reorder} onChange={(e) => setReorder(e.target.value)} required />
                 </Field>
-                <p className="text-xs text-slate-500">Change the selling price, photos and description on the Items page.</p>
+                <p className="text-xs text-slate-500">Change the selling price, photos and description on the Products page.</p>
                 {error && <Alert variant="danger">{error}</Alert>}
                 <Button type="submit" block disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
             </form>

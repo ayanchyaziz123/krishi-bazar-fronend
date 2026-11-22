@@ -11,6 +11,7 @@ import ClassicEditor from '@ckeditor/ckeditor5-build-classic'
 import { Alert, Badge, Button, Card, Checkbox, Field, Input, Modal, Select, Spinner, Textarea, cn } from '../components/ui'
 import { useCategories } from '../components/categories'
 import { PREVIEW_FRAME } from '../components/siteContent'
+import { shopUrl } from '../components/shopSlug'
 import { activeBusinessInfo } from '../admin_components/roles'
 import { brandPalette } from '../components/storeBrand'
 import { THEME_PRESETS, isHex, whiteContrast } from '../components/shop/theme'
@@ -168,7 +169,7 @@ function WebsiteScreen() {
                 </div>
 
                 <div className="flex shrink-0 items-center gap-2 lg:ml-0">
-                    <span className="hidden xl:block"><Button variant="ghost" size="sm" onClick={() => window.open('/#/', '_blank')}><ExternalLink className="h-4 w-4" /> Live site</Button></span>
+                    <span className="hidden xl:block"><Button variant="ghost" size="sm" onClick={() => window.open(shopUrl(business && business.slug), '_blank')}><ExternalLink className="h-4 w-4" /> Live site</Button></span>
                     <span className="hidden sm:block"><Button variant="secondary" size="sm" disabled={!meta.unpublished || Boolean(busy)} onClick={discard}><RotateCcw className="h-4 w-4" /> Discard</Button></span>
                     <Button size="sm" disabled={(!meta.unpublished && saveState === 'saved') || Boolean(busy) || saveState === 'error'} onClick={publishSite}>
                         <Rocket className="h-4 w-4" /> {busy === 'publish' ? 'Publishing…' : 'Publish'}
@@ -853,6 +854,7 @@ function SeoSocialEditor({ draft, update }) {
 // ------------------------------------------------------------------ custom pages
 
 function PagesEditor({ pages, auth, onChanged }) {
+    const shopSlug = (activeBusinessInfo(useSelector((state) => state.userLogin).userInfo) || {}).slug
     const [editing, setEditing] = useState(null)
     const remove = (p) => {
         if (!window.confirm(`Delete the page "${p.title}"? Links to it will stop working.`)) return
@@ -869,7 +871,7 @@ function PagesEditor({ pages, auth, onChanged }) {
                         <p className="truncate text-xs text-slate-500">/page/{p.slug}</p>
                     </div>
                     {p.published ? <Badge variant="green">Published</Badge> : <Badge variant="amber">Draft</Badge>}
-                    <IconButton label="Open page" onClick={() => window.open(`/#/page/${p.slug}`, '_blank')}><ExternalLink className="h-4 w-4" /></IconButton>
+                    <IconButton label="Open page" onClick={() => window.open(shopUrl(shopSlug, `/page/${p.slug}`), '_blank')}><ExternalLink className="h-4 w-4" /></IconButton>
                     <IconButton label={`Edit ${p.title}`} onClick={() => setEditing(p)}><Pencil className="h-4 w-4" /></IconButton>
                     <IconButton label={`Delete ${p.title}`} danger onClick={() => remove(p)}><Trash2 className="h-4 w-4" /></IconButton>
                 </Card>

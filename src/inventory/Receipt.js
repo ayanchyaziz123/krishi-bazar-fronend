@@ -47,6 +47,11 @@ function Receipt({ sale }) {
                         <span>{Number(item.qty)} {item.unit} x {formatINR(item.unit_price)}</span>
                         <span>{formatINR(item.line_total)}</span>
                     </div>
+                    {item.combo_parts && item.combo_parts.length > 0 && (
+                        <p className="text-[11px] leading-snug text-slate-500">
+                            Has: {item.combo_parts.map((x) => `${x.qty * Number(item.qty)} ${x.unit} ${x.name}`).join(', ')}
+                        </p>
+                    )}
                 </div>
             ))}
             <div className="my-3 border-t border-dashed border-slate-300" />
@@ -128,6 +133,48 @@ export function RefundReceipt({ refund, sale }) {
             {!refund.restocked && <p className="mt-1 text-slate-500">Items not put back for sale.</p>}
             {refund.by && <p className="mt-1 text-slate-500">By {refund.by}</p>}
             <p className="mt-4 text-center text-slate-500">{store.receipt_footer}</p>
+        </div>
+    )
+}
+
+// A delivery slip (goods received note) for stock that came in from a supplier.
+export function DeliveryReceipt({ delivery: d, className = '' }) {
+    const store = useStoreBrand()
+    if (!d) return null
+    const date = d.received_on ? new Date(`${d.received_on}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : ''
+    return (
+        <div className={`print-area mx-auto max-w-xs font-mono text-xs text-slate-800 ${className}`}>
+            <Header store={store}>
+                <p className="mt-1 text-sm font-bold">STOCK RECEIVED</p>
+                <p className="text-slate-500">Delivery #{d.id}{date ? ` · ${date}` : ''}</p>
+                <p className="mt-1">From: {d.supplier || 'Not recorded'}</p>
+                {d.invoice_no && <p className="text-slate-500">Supplier invoice: {d.invoice_no}</p>}
+            </Header>
+            <div className="my-3 border-t border-dashed border-slate-300" />
+            {d.items.map((i, k) => (
+                <div key={k} className="mb-1.5">
+                    <p className="font-semibold">{i.name}</p>
+                    <div className="flex justify-between text-slate-600">
+                        <span>{Number(i.qty)} {i.unit} x {formatINR(i.unit_cost)}</span>
+                        <span>{formatINR(Number(i.qty) * Number(i.unit_cost))}</span>
+                    </div>
+                    {(i.batch_no || i.expiry_date) && (
+                        <p className="text-[11px] text-slate-500">
+                            {i.batch_no ? `Batch ${i.batch_no}` : ''}{i.batch_no && i.expiry_date ? ' · ' : ''}{i.expiry_date ? `Expires ${i.expiry_date}` : ''}
+                        </p>
+                    )}
+                </div>
+            ))}
+            <div className="my-3 border-t border-dashed border-slate-300" />
+            <Row label="Total" value={formatINR(d.total_cost)} bold />
+            <Row label="Paid" value={formatINR(d.amount_paid)} />
+            <Row label="Owed" value={d.due > 0 ? formatINR(d.due) : 'Nil'} />
+            {d.note && <p className="mt-2">Note: {d.note}</p>}
+            {d.received_by && <p className="mt-2 text-slate-500">Received by {d.received_by}</p>}
+            <div className="mt-8 flex justify-between text-slate-500">
+                <span className="w-24 border-t border-slate-400 pt-1 text-center">Supplier</span>
+                <span className="w-24 border-t border-slate-400 pt-1 text-center">Shop</span>
+            </div>
         </div>
     )
 }

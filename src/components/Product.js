@@ -45,6 +45,9 @@ function Product({ product, compact }) {
                 {product.is_offer && product.offer_percentage > 0 && (
                     <span className="absolute left-2 top-2 rounded-md bg-red-600 px-1.5 py-0.5 text-[11px] font-bold text-white">-{product.offer_percentage}%</span>
                 )}
+                {product.is_combo && (
+                    <span className={cn('absolute left-2 rounded-md bg-amber-400 px-1.5 py-0.5 text-[11px] font-bold uppercase text-amber-950', product.is_offer && product.offer_percentage > 0 ? 'top-8' : 'top-2')}>Combo</span>
+                )}
                 {soldOut && <span className="absolute inset-x-0 bottom-0 bg-slate-900/70 py-1 text-center text-xs font-semibold text-white">Sold out</span>}
                 {!soldOut && !compact && (
                     <button type="button" onClick={add} disabled={atLimit || status === 'adding'}
@@ -70,6 +73,9 @@ function Product({ product, compact }) {
                     )}
                 </div>
                 <p className={cn('mt-0.5 line-clamp-2 font-bold leading-snug text-slate-900', compact ? 'text-sm' : 'text-[15px] sm:text-base')}>{product.name}</p>
+                {product.is_combo && product.combo && product.combo.separately_online > Number(finalPrice(product)) && (
+                    <p className="mt-0.5 text-xs font-semibold text-emerald-700">Save {formatINR(product.combo.separately_online - Number(finalPrice(product)))} · {product.combo.items.length} items</p>
+                )}
             </div>
         </Link>
     )

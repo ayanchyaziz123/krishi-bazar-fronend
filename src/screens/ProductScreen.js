@@ -116,7 +116,8 @@ function ProductScreen({ match, history }) {
 
     // Future-price prediction fits a trend line, so it needs recorded price changes.
     const canPredict = price_history && price_history.length >= 2
-    const images = [product.image, product.image2, product.image3].filter(Boolean)
+    // The main photo, then any extra photos (empty slots hold a placeholder or nothing).
+    const images = [product.image, ...[product.image2, product.image3, product.image4, product.image5].filter((src) => src && !/placeholder/.test(src))].filter(Boolean)
     const offer = product.is_offer && product.offer_percentage > 0
 
     const buttons = (
@@ -132,8 +133,15 @@ function ProductScreen({ match, history }) {
         </div>
     )
 
-    if (loading) return <Loader />
-    if (error) return <Container><Message variant='danger'>{error}</Message></Container>
+    // A different product is loading: don't show (or let anyone add) the previous one.
+    if (loading && String(product._id) !== String(match.params.id)) return <Loader />
+    if (error) return (
+        <Container className="max-w-xl py-16 text-center">
+            <h1 className="text-xl font-bold text-slate-900">This product isn't available</h1>
+            <p className="mt-2 text-sm text-slate-500">It may have been removed or sold out for good.</p>
+            <Button to="/" className="mt-6">Back to the shop</Button>
+        </Container>
+    )
 
     return (
         <>
@@ -191,6 +199,27 @@ function ProductScreen({ match, history }) {
                                 className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-50 px-4 py-2.5 text-sm font-semibold text-brand-700 transition hover:bg-brand-100">
                                 <TrendingUp className="h-4 w-4" /> Predict future price
                             </button>
+                        )}
+
+                        {product.is_combo && product.combo && (
+                            <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+                                <h2 className="mb-2 text-lg font-bold text-slate-900">What's in this combo</h2>
+                                <ul className="divide-y divide-amber-100">
+                                    {product.combo.items.map((x) => (
+                                        <li key={x.product} className="flex items-center gap-3 py-2">
+                                            {x.image && <img src={x.image} alt="" className="h-10 w-10 shrink-0 rounded-lg bg-white object-cover" />}
+                                            <Link to={`/product/${x.product}`} className="min-w-0 flex-1 truncate text-[15px] font-medium text-slate-800 hover:text-brand-700">{x.name}</Link>
+                                            <span className="shrink-0 text-sm font-semibold text-slate-700">{x.qty} {x.unit}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                                {product.combo.separately_online > Number(finalPrice(product)) && (
+                                    <p className="mt-2 text-sm text-slate-600">
+                                        Bought separately: <span className="line-through">{formatINR(product.combo.separately_online)}</span>{' '}
+                                        <span className="font-bold text-emerald-700">You save {formatINR(product.combo.separately_online - Number(finalPrice(product)))}</span>
+                                    </p>
+                                )}
+                            </div>
                         )}
 
                         {product.description && (

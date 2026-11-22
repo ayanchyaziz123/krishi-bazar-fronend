@@ -34,7 +34,7 @@ function BrandScreen() {
     return (
         <AdminLayout
             title="Categories"
-            subtitle="Used by the shop's menu, the counter and the item editor."
+            subtitle="Used by the shop's menu, the counter and the product editor."
             action={<Button onClick={() => setEditing({})}><Plus className="h-4 w-4" /> Add category</Button>}
         >
             {notice && <Alert variant="success" className="mb-4">{notice}</Alert>}
@@ -49,7 +49,7 @@ function BrandScreen() {
                                     <div className="min-w-0 flex-1">
                                         <p className="text-sm font-semibold text-slate-900">{c.label}</p>
                                         <p className="text-xs text-slate-500">
-                                            {c.productCount === undefined ? '' : `${c.productCount} item${c.productCount === 1 ? '' : 's'} · `}
+                                            {c.productCount === undefined ? '' : `${c.productCount} product${c.productCount === 1 ? '' : 's'} · `}
                                             matches categories containing “{c.keyword}”
                                         </p>
                                     </div>
@@ -109,8 +109,8 @@ function CategoryForm({ category, config, onClose, onSaved }) {
                 </Field>
                 <Field label="Match word" id="cat-keyword"
                     hint={isNew
-                        ? 'Optional. Items whose category contains this word belong here. Leave empty to use the name.'
-                        : 'Items whose category contains this word belong here. Renaming also moves items labelled with the old name.'}>
+                        ? 'Optional. Products whose category contains this word belong here. Leave empty to use the name.'
+                        : 'Products whose category contains this word belong here. Renaming also moves products labelled with the old name.'}>
                     <Input id="cat-keyword" maxLength={60} placeholder={name.trim().toLowerCase() || 'e.g. honey'} value={keyword} onChange={(e) => setKeyword(e.target.value)} />
                 </Field>
                 <div>
@@ -155,7 +155,7 @@ function DeleteCategory({ category, config, onClose, onDeleted }) {
                     Move {category.productCount === 1 ? 'it' : 'them'} to another category on the product edit page first.
                 </p>
             ) : (
-                <p className="text-sm text-slate-600">It will be removed from the shop's menu, the counter and the item editor.</p>
+                <p className="text-sm text-slate-600">It will be removed from the shop's menu, the counter and the product editor.</p>
             )}
             {error && <Alert variant="danger" className="mt-3">{error}</Alert>}
             <div className="mt-5 flex gap-2">

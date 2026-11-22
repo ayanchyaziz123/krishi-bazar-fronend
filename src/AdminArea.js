@@ -18,6 +18,7 @@ import SettingsScreen from './screens/SettingsScreen'
 import WebsiteScreen from './screens/WebsiteScreen'
 import DeliverySettingsScreen from './screens/DeliverySettingsScreen'
 import GstReportScreen from './screens/GstReportScreen'
+import KhataScreen from './screens/inventory/KhataScreen'
 
 // Every admin page, inside the admin frame. This file is loaded separately from the
 // shop, so customers never download the admin pages, charts or text editor.
@@ -30,6 +31,7 @@ function AdminArea() {
         <Route path='/admin/stock' component={StockScreen} />
         <Route path='/admin/receive' component={ReceiveStockScreen} />
         <Route path='/admin/sales' component={SalesScreen} />
+        <Route path='/admin/khata/:id?' component={KhataScreen} />
         <Route path='/admin/orderlist' component={OrderListScreen} />
         <Route path='/admin/order/:id' component={OrderScreen} />
         <Route path='/admin/productlist' component={ProductListScreen} />

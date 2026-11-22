@@ -1,11 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Download, FileText } from 'lucide-react'
+import { Download, FileText, Landmark, Settings } from 'lucide-react'
 import AdminLayout from '../admin_components/AdminLayout'
 import { Alert, Button, Card, CardHeader, Input, Spinner, Table, Td, Th, formatINR } from '../components/ui'
 import { useAdminGuard, inventoryApi, errorText, todayInShop } from '../inventory/api'
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`
 const firstOfMonth = () => `${todayInShop().slice(0, 8)}01`
+// The first and last day of last month.
+const lastMonth = () => {
+    const [y, m] = todayInShop().split('-').map(Number)
+    const start = new Date(Date.UTC(m === 1 ? y - 1 : y, (m + 10) % 12, 1))
+    const end = new Date(Date.UTC(y, m - 1, 0))
+    return [start.toISOString().slice(0, 10), end.toISOString().slice(0, 10)]
+}
 
 // A CSV file the CA can open in Excel. Amounts as plain numbers.
 function downloadCsv(name, rows) {
@@ -53,31 +60,52 @@ function GstReportScreen({ history }) {
     return (
         <AdminLayout
             title="GST report"
-            subtitle="GST on counter bills and online orders for a date range, less returns. Download it for your CA or for GSTR-1 and GSTR-3B."
+            subtitle="The GST you charged on bills and online orders, less returns. Pick the dates, then download it for your CA (GSTR-1 and GSTR-3B)."
             action={(
                 <div className="flex flex-wrap items-center gap-2">
-                    <Input type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} className="!w-40" aria-label="From" />
-                    <span className="text-sm text-slate-500">to</span>
-                    <Input type="date" value={to} min={from} max={todayInShop()} onChange={(e) => setTo(e.target.value)} className="!w-40" aria-label="To" />
-                    <Button variant="secondary" disabled={!report} onClick={exportCsv}><Download className="h-4 w-4" /> CSV</Button>
+                    <div className="flex rounded-lg border border-slate-200 bg-white p-0.5 text-sm">
+                        {[['This month', [firstOfMonth(), todayInShop()]], ['Last month', lastMonth()]].map(([label, [a, b]]) => (
+                            <button key={label} type="button" onClick={() => { setFrom(a); setTo(b) }}
+                                className={`rounded-md px-3 py-1.5 font-medium ${from === a && to === b ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>{label}</button>
+                        ))}
+                    </div>
+                    <Button disabled={!report} onClick={exportCsv}><Download className="h-4 w-4" /> Download for CA</Button>
                 </div>
             )}
         >
+            <div className="mb-5 flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                <span>From</span>
+                <Input type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} className="!w-40" aria-label="From" />
+                <span>to</span>
+                <Input type="date" value={to} min={from} max={todayInShop()} onChange={(e) => setTo(e.target.value)} className="!w-40" aria-label="To" />
+            </div>
             {error && <Alert variant="danger" className="mb-4">{error}</Alert>}
             {loading && !report ? <Spinner /> : report && (
                 <div className="space-y-6">
                     {mode !== 'regular' && (
-                        <Alert variant="info">
-                            {mode === 'composition'
-                                ? 'The shop is on the composition scheme, so no GST is charged to customers. Sales are listed below as sales without GST.'
-                                : 'The shop is set as not GST registered, so bills carry no GST. Turn on GST in Settings.'}
-                        </Alert>
+                        <Card className="flex flex-col items-start gap-4 p-6 sm:flex-row sm:items-center">
+                            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500"><Landmark className="h-6 w-6" /></span>
+                            <div className="flex-1">
+                                <p className="font-semibold text-slate-900">{mode === 'composition' ? 'Your shop is on the composition scheme' : 'GST is off for your shop'}</p>
+                                <p className="mt-1 text-sm text-slate-600">
+                                    {mode === 'composition'
+                                        ? 'Customers are not charged GST, so there is no GST to report here.'
+                                        : 'Bills do not charge GST. If your shop is GST registered, turn GST on in Settings.'}
+                                    {report.untaxed_sales > 0 && <> Sales in these dates: <strong>{formatINR(report.untaxed_sales)}</strong>.</>}
+                                </p>
+                            </div>
+                            <Button variant="secondary" to="/admin/settings"><Settings className="h-4 w-4" /> Settings</Button>
+                        </Card>
                     )}
+                    {/* The figures, when there is GST to show (also for GST charged before it was turned off). */}
+                    {(mode === 'regular' || report.totals.tax > 0) && (<>
                     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                        {[['Taxable value', report.totals.taxable], ['CGST + SGST', report.totals.cgst + report.totals.sgst], ['IGST', report.totals.igst], ['Total GST', report.totals.tax]].map(([label, value]) => (
+                        {[['Sales before GST', report.totals.taxable, 'Taxable value'], ['CGST + SGST', report.totals.cgst + report.totals.sgst, 'Customers in your state'],
+                            ['IGST', report.totals.igst, 'Online orders to other states'], ['Total GST collected', report.totals.tax, 'To pay the government']].map(([label, value, note]) => (
                             <Card key={label} className="p-4">
                                 <p className="text-[13px] font-medium text-slate-500">{label}</p>
                                 <p className="figure mt-2 text-2xl font-semibold text-slate-900">{formatINR(value)}</p>
+                                <p className="mt-1 text-xs text-slate-500">{note}</p>
                             </Card>
                         ))}
                     </div>
@@ -88,7 +116,7 @@ function GstReportScreen({ history }) {
                     </p>
 
                     <Card>
-                        <CardHeader title="By GST rate" />
+                        <CardHeader title="By GST rate" subtitle="How much was sold at each rate" />
                         <Table>
                             <thead><tr><Th>Rate</Th><Th className="text-right">Taxable value</Th><Th className="text-right">CGST</Th><Th className="text-right">SGST</Th><Th className="text-right">IGST</Th><Th className="text-right">Total GST</Th></tr></thead>
                             <tbody className="divide-y divide-slate-100">
@@ -104,9 +132,9 @@ function GstReportScreen({ history }) {
                     </Card>
 
                     <Card>
-                        <CardHeader title="By HSN code" subtitle="The HSN summary for GSTR-1" />
+                        <CardHeader title="By HSN code" subtitle="The HSN summary your CA needs for GSTR-1" />
                         <Table>
-                            <thead><tr><Th>HSN</Th><Th>Item</Th><Th className="text-right">Quantity</Th><Th className="text-right">Rate</Th><Th className="text-right">Taxable value</Th><Th className="text-right">GST</Th></tr></thead>
+                            <thead><tr><Th>HSN</Th><Th>Product</Th><Th className="text-right">Quantity</Th><Th className="text-right">Rate</Th><Th className="text-right">Taxable value</Th><Th className="text-right">GST</Th></tr></thead>
                             <tbody className="divide-y divide-slate-100">
                                 {report.by_hsn.map((h, i) => (
                                     <tr key={i}>
@@ -119,6 +147,7 @@ function GstReportScreen({ history }) {
                             </tbody>
                         </Table>
                     </Card>
+                    </>)}
                     <p className="text-xs text-slate-500">Delivery charges are not included as taxable supplies. GST paid on purchases (input tax credit) is not tracked yet; take it from your suppliers' invoices.</p>
                 </div>
             )}

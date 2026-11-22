@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import axios from 'axios'
 import { useSelector } from 'react-redux'
-import { Plus, Pencil, Trash2, Search, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Plus, Pencil, Trash2, Search, ChevronLeft, ChevronRight, Package, Layers, ArrowUp, ArrowDown, ChevronsUpDown, Image as ImageIcon, Store, Globe } from 'lucide-react'
 import AdminLayout from '../admin_components/AdminLayout'
-import { Alert, Badge, Button, Card, Input, Modal, Select, Spinner, StatusPill, formatINR, toast } from '../components/ui'
+import { Alert, Badge, Button, Card, EmptyState, Input, Modal, Select, Skeleton, StatusPill, cn, formatINR, toast } from '../components/ui'
 import { useCategories } from '../components/categories'
 
 const errorText = (e) => (e.response && e.response.data && e.response.data.detail) || e.message
@@ -16,8 +17,18 @@ const CHANNELS = [
     { value: 'hidden', label: 'Not for sale' },
 ]
 
-// Every product in the store, with search, filters and paging kept in the address bar
-// so a filtered list can be bookmarked or shared.
+const TABS = [
+    { value: '', label: 'All', count: 'all' },
+    { value: 'low', label: 'Low stock', count: 'low' },
+    { value: 'out', label: 'Out of stock', count: 'out' },
+    { value: 'combo', label: 'Combos', count: 'combo' },
+    { value: 'hidden', label: 'Not for sale', count: 'hidden' },
+]
+
+const PLACEHOLDER = /placeholder/
+
+// Every product in the store, with tabs, search, filters, sorting and paging kept in the
+// address bar so a filtered list can be bookmarked or shared.
 function ProductListScreen({ history, location }) {
     const { userInfo } = useSelector((state) => state.userLogin)
     const auth = useMemo(() => ({ headers: { Authorization: `Bearer ${userInfo.token}` } }), [userInfo])
@@ -28,6 +39,7 @@ function ProductListScreen({ history, location }) {
         keyword: params.get('keyword') || '',
         category: params.get('category') || '',
         channel: params.get('channel') || '',
+        status: params.get('status') || '',
         sort: params.get('sort') || 'name',
         page_size: params.get('page_size') || '25',
         page: Number(params.get('page')) || 1,
@@ -35,6 +47,7 @@ function ProductListScreen({ history, location }) {
 
     const [search, setSearch] = useState(filters.keyword)
     const [data, setData] = useState(null)
+    const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
     const [deleting, setDeleting] = useState(null)
     const [reload, setReload] = useState(0)
@@ -57,107 +70,191 @@ function ProductListScreen({ history, location }) {
 
     useEffect(() => {
         const query = new URLSearchParams({ scope: 'all', sort: filters.sort, page_size: filters.page_size, page: filters.page })
-        if (filters.keyword) query.set('keyword', filters.keyword)
-        if (filters.category) query.set('category', filters.category)
-        if (filters.channel) query.set('channel', filters.channel)
+        ;['keyword', 'category', 'channel', 'status'].forEach((k) => filters[k] && query.set(k, filters[k]))
+        setLoading(true)
         axios.get(`/api/products/?${query}`, auth)
             .then((res) => { setData(res.data); setError('') })
             .catch((e) => setError(errorText(e)))
+            .finally(() => setLoading(false))
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [location.search, auth, reload])
 
     const filtered = filters.keyword || filters.category || filters.channel
+    const counts = (data && data.counts) || {}
+    const edit = (p) => history.push(`/admin/product/${p._id}/edit`)
+    const first = data ? (data.page - 1) * Number(filters.page_size) + 1 : 0
+    const last = data ? Math.min(data.page * Number(filters.page_size), data.count) : 0
+
+    // Click a column heading to sort by it; click again to flip the order.
+    const sortBy = (asc, desc) => update({ sort: filters.sort === asc ? desc : asc })
+    const SortHead = ({ asc, desc, children, className }) => {
+        const on = filters.sort === asc || filters.sort === desc
+        const Icon = !on ? ChevronsUpDown : filters.sort === asc ? ArrowUp : ArrowDown
+        return (
+            <th className={cn('px-3 py-2.5', className)} aria-sort={on ? (filters.sort === asc ? 'ascending' : 'descending') : 'none'}>
+                <button type="button" onClick={() => sortBy(asc, desc)}
+                    className={cn('inline-flex items-center gap-1 uppercase tracking-wider hover:text-slate-900', on && 'text-slate-900')}>
+                    {children} <Icon className="h-3.5 w-3.5" />
+                </button>
+            </th>
+        )
+    }
 
     return (
         <AdminLayout
-            title="Items"
-            subtitle="Everything sold in the shop and online."
-            action={<Button to="/admin/product/new"><Plus className="h-4 w-4" /> New item</Button>}
+            title="Products"
+            subtitle="Everything sold at the counter and in your online shop."
+            action={(
+                <div className="flex flex-wrap gap-2">
+                    <Button to="/admin/product/new?combo=1" variant="secondary"><Layers className="h-4 w-4" /> New combo</Button>
+                    <Button to="/admin/product/new"><Plus className="h-4 w-4" /> New product</Button>
+                </div>
+            )}
         >
-            <div className="mb-4 flex flex-col gap-2 lg:flex-row">
-                <div className="relative flex-1">
-                    <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, category or counter code" className="pl-10" aria-label="Search items" />
-                </div>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:flex">
-                    <Select value={filters.category} onChange={(e) => update({ category: e.target.value })} aria-label="Category" className="lg:!w-40">
-                        <option value="">All categories</option>
-                        {categories.map((c) => <option key={c.keyword} value={c.keyword}>{c.label}</option>)}
-                    </Select>
-                    <Select value={filters.channel} onChange={(e) => update({ channel: e.target.value })} aria-label="Where it's sold" className="lg:!w-44">
-                        {CHANNELS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-                    </Select>
-                    <Select value={filters.sort} onChange={(e) => update({ sort: e.target.value })} aria-label="Sort" className="lg:!w-44">
-                        <option value="name">Name A–Z</option>
-                        <option value="newest">Newest first</option>
-                        <option value="price_asc">Price, low to high</option>
-                        <option value="price_desc">Price, high to low</option>
-                    </Select>
-                    <Select value={filters.page_size} onChange={(e) => update({ page_size: e.target.value })} aria-label="Rows per page" className="lg:!w-36">
-                        {['10', '25', '50', '100'].map((n) => <option key={n} value={n}>{n} per page</option>)}
-                    </Select>
-                </div>
-            </div>
-
             {error && <Alert variant="danger" className="mb-4">{error}</Alert>}
 
-            {!data ? <Spinner /> : (
-                <Card className="overflow-hidden rounded-xl">
-                    <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3 text-sm text-slate-600">
-                        <span>{data.count} {data.count === 1 ? 'item' : 'items'}{filtered ? ' match' : ''}</span>
-                        {filtered && (
-                            <button type="button" className="font-semibold text-brand-700 hover:underline" onClick={() => { setSearch(''); history.replace({ search: '' }) }}>
-                                Clear filters
+            <Card className="overflow-hidden rounded-xl">
+                {/* Tabs */}
+                <div className="flex gap-1 overflow-x-auto border-b border-slate-200 px-3" role="tablist" aria-label="Show">
+                    {TABS.map((t) => {
+                        const on = filters.status === t.value
+                        const n = counts[t.count]
+                        const warn = (t.value === 'low' || t.value === 'out') && n > 0
+                        return (
+                            <button key={t.value} type="button" role="tab" aria-selected={on} onClick={() => update({ status: t.value })}
+                                className={cn('-mb-px flex shrink-0 items-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition',
+                                    on ? 'border-brand-600 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-800')}>
+                                {t.label}
+                                {n != null && (
+                                    <span className={cn('rounded-full px-2 py-0.5 text-xs font-semibold',
+                                        warn ? (t.value === 'out' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800') : on ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600')}>
+                                        {n}
+                                    </span>
+                                )}
                             </button>
-                        )}
+                        )
+                    })}
+                </div>
+
+                {/* Search and filters */}
+                <div className="flex flex-col gap-2 border-b border-slate-100 p-3 lg:flex-row">
+                    <div className="relative flex-1">
+                        <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, category or counter code" className="pl-10" aria-label="Search products" />
                     </div>
-                    {data.products.length === 0 ? (
-                        <p className="px-5 py-12 text-center text-sm text-slate-500">No items match. Try another search or clear the filters.</p>
+                    <div className="grid grid-cols-3 gap-2 lg:flex">
+                        <Select value={filters.category} onChange={(e) => update({ category: e.target.value })} aria-label="Category" className="lg:!w-40">
+                            <option value="">All categories</option>
+                            {categories.map((c) => <option key={c.keyword} value={c.keyword}>{c.label}</option>)}
+                        </Select>
+                        <Select value={filters.channel} onChange={(e) => update({ channel: e.target.value })} aria-label="Where it's sold" className="lg:!w-44">
+                            {CHANNELS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                        </Select>
+                        <Select value={filters.sort} onChange={(e) => update({ sort: e.target.value })} aria-label="Sort" className="lg:!w-44">
+                            <option value="name">Name A–Z</option>
+                            <option value="newest">Newest first</option>
+                            <option value="price_asc">Price, low to high</option>
+                            <option value="price_desc">Price, high to low</option>
+                            <option value="stock_asc">Stock, low to high</option>
+                            <option value="stock_desc">Stock, high to low</option>
+                        </Select>
+                    </div>
+                </div>
+
+                {filtered && data && (
+                    <div className="flex items-center justify-between bg-slate-50 px-5 py-2 text-xs text-slate-600">
+                        <span>{data.count} {data.count === 1 ? 'product matches' : 'products match'}</span>
+                        <button type="button" className="font-semibold text-brand-700 hover:underline" onClick={() => { setSearch(''); history.replace({ search: filters.status ? `status=${filters.status}` : '' }) }}>
+                            Clear filters
+                        </button>
+                    </div>
+                )}
+
+                {!data ? <ListSkeleton /> : data.products.length === 0 ? (
+                    filtered || filters.status ? (
+                        <EmptyState icon={Search} compact title="Nothing here">
+                            {filters.status && !filtered ? 'No products under this tab right now.' : 'No products match. Try another search or clear the filters.'}
+                        </EmptyState>
                     ) : (
-                        <div className="overflow-x-auto">
+                        <EmptyState icon={Package} title="No products yet"
+                            action={<Button to="/admin/product/new"><Plus className="h-4 w-4" /> Add your first product</Button>}>
+                            Add what you sell, with its price, photo and stock. It can then be sold at the counter and in your online shop.
+                        </EmptyState>
+                    )
+                ) : (
+                    <div className={cn('transition-opacity', loading && 'opacity-60')}>
+                        {/* Phones: one card per product */}
+                        <ul className="divide-y divide-slate-100 md:hidden">
+                            {data.products.map((p) => (
+                                <li key={p._id}>
+                                    <button type="button" onClick={() => edit(p)} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-slate-50">
+                                        <Thumb product={p} />
+                                        <span className="min-w-0 flex-1">
+                                            <span className="block truncate text-sm font-medium text-slate-900">{p.name}</span>
+                                            <span className="block truncate text-xs text-slate-500">{p.category}{p.code ? ` · ${p.code}` : ''}</span>
+                                            <span className="mt-1 block"><StockStatus product={p} /></span>
+                                        </span>
+                                        <span className="shrink-0 text-right">
+                                            <span className="block text-sm font-semibold text-slate-900">{formatINR(p.shop_price ?? p.price)}</span>
+                                            <span className="block text-xs text-slate-500">{stockText(p)}</span>
+                                        </span>
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+
+                        {/* Larger screens: table */}
+                        <div className="hidden overflow-x-auto md:block">
                             <table className="w-full text-sm">
-                                <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                <thead className="border-b border-slate-200 bg-slate-50/70 text-left text-xs font-semibold text-slate-500">
                                     <tr>
-                                        <th className="px-5 py-2.5">Item</th>
-                                        <th className="px-3 py-2.5">Category</th>
-                                        <th className="px-3 py-2.5 text-right">Price</th>
-                                        <th className="px-3 py-2.5 text-right">On hand</th>
-                                        <th className="px-3 py-2.5">Status</th>
-                                        <th className="px-3 py-2.5">Sold in</th>
-                                        <th className="px-5 py-2.5" />
+                                        <SortHead asc="name" desc="name" className="pl-5">Product</SortHead>
+                                        <th className="px-3 py-2.5 uppercase tracking-wider">Category</th>
+                                        <SortHead asc="price_asc" desc="price_desc" className="text-right">Price</SortHead>
+                                        <SortHead asc="stock_asc" desc="stock_desc" className="text-right">Stock</SortHead>
+                                        <th className="px-3 py-2.5 uppercase tracking-wider">Sold at</th>
+                                        <th className="px-5 py-2.5"><span className="sr-only">Actions</span></th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
                                     {data.products.map((p) => (
-                                        <tr key={p._id} className="hover:bg-slate-50/60">
-                                            <td className="px-5 py-2.5">
+                                        <tr key={p._id} className="group cursor-pointer transition hover:bg-slate-50"
+                                            onClick={(e) => { if (!e.target.closest('a, button')) edit(p) }}>
+                                            <td className="py-3 pl-5 pr-3">
                                                 <div className="flex items-center gap-3">
-                                                    <span className="flex h-10 w-12 shrink-0 items-center justify-center rounded-lg bg-slate-50 p-1">
-                                                        <img src={p.image} alt="" className="max-h-full max-w-full object-contain" />
-                                                    </span>
+                                                    <Thumb product={p} />
                                                     <div className="min-w-0">
-                                                        <p className="truncate font-medium text-slate-900">{p.name}</p>
-                                                        <p className="text-xs text-slate-400">
-                                                            #{p._id}{p.code ? ` · code ${p.code}` : ''}{p.weight ? ` · ${p.weight}` : ''}{p.sold_by_weight ? ' · by weight' : ''}
+                                                        <Link to={`/admin/product/${p._id}/edit`} className="block max-w-xs truncate font-medium text-slate-900 hover:text-brand-700">{p.name}</Link>
+                                                        <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-slate-500">
+                                                            {p.is_combo && <span className="rounded bg-violet-50 px-1.5 py-px font-semibold text-violet-700 ring-1 ring-violet-600/20">Combo</span>}
+                                                            {p.code && <span>Code {p.code}</span>}
+                                                            {p.weight && !p.is_combo && <span>{p.code ? '· ' : ''}{p.weight}</span>}
+                                                            {p.is_combo && p.combo && <span>{p.combo.items.length} products inside</span>}
+                                                            {p.sold_by_weight && <span>· loose</span>}
                                                         </p>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-3 py-2.5 text-slate-600">{p.category}</td>
-                                            <td className="px-3 py-2.5 text-right font-medium text-slate-900">
-                                                {formatINR(p.shop_price ?? p.price)}
+                                            <td className="px-3 py-3 text-slate-600">{p.category}</td>
+                                            <td className="px-3 py-3 text-right">
+                                                <span className="font-semibold text-slate-900">{formatINR(p.shop_price ?? p.price)}</span>
                                                 {p.online_price != null && Number(p.online_price) !== Number(p.shop_price) && (
-                                                    <span className="block text-xs font-normal text-slate-500">Online {formatINR(p.online_price)}</span>
+                                                    <span className="block text-xs text-slate-500">Online {formatINR(p.online_price)}</span>
                                                 )}
-                                                {p.is_offer && p.offer_percentage > 0 && <span className="block text-xs font-normal text-amber-700">{p.offer_percentage}% off</span>}
+                                                {p.is_offer && p.offer_percentage > 0 && <span className="block text-xs font-medium text-emerald-700">{p.offer_percentage}% off</span>}
                                             </td>
-                                            <td className="px-3 py-2.5 text-right text-slate-700">{p.stock_exact ?? p.countInStock} <span className="text-xs text-slate-400">{p.unit === 'piece' ? 'pc' : p.unit}</span></td>
-                                            <td className="px-3 py-2.5"><StockStatus product={p} /></td>
-                                            <td className="px-3 py-2.5"><SoldIn product={p} /></td>
-                                            <td className="px-5 py-2.5 text-right">
-                                                <div className="inline-flex gap-1">
-                                                    <Button to={`/admin/product/${p._id}/edit`} variant="ghost" size="icon" aria-label={`Edit ${p.name}`}><Pencil className="h-4 w-4" /></Button>
-                                                    <Button variant="danger-soft" size="icon" onClick={() => setDeleting(p)} aria-label={`Delete ${p.name}`}><Trash2 className="h-4 w-4" /></Button>
+                                            <td className="px-3 py-3 text-right">
+                                                <span className="block font-medium tabular-nums text-slate-900">{stockText(p)}</span>
+                                                <span className="mt-0.5 inline-block"><StockStatus product={p} /></span>
+                                            </td>
+                                            <td className="px-3 py-3"><SoldIn product={p} /></td>
+                                            <td className="px-5 py-3 text-right">
+                                                <div className="inline-flex gap-1 opacity-70 transition group-hover:opacity-100">
+                                                    <Button to={`/admin/product/${p._id}/edit`} variant="ghost" size="icon" aria-label={`Edit ${p.name}`} title="Edit"><Pencil className="h-4 w-4" /></Button>
+                                                    <button type="button" onClick={() => setDeleting(p)} aria-label={`Delete ${p.name}`} title="Delete"
+                                                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600">
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -165,28 +262,67 @@ function ProductListScreen({ history, location }) {
                                 </tbody>
                             </table>
                         </div>
-                    )}
-                    {data.pages > 1 && (
-                        <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3 text-sm">
-                            <span className="text-slate-500">Page {data.page} of {data.pages}</span>
-                            <div className="flex gap-1">
-                                <Button variant="secondary" size="sm" disabled={data.page <= 1} onClick={() => update({ page: String(data.page - 1) })}>
-                                    <ChevronLeft className="h-4 w-4" /> Previous
+                    </div>
+                )}
+
+                {data && data.count > 0 && (
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-5 py-3 text-sm">
+                        <div className="flex items-center gap-3 text-slate-500">
+                            <span>{first}–{last} of {data.count}</span>
+                            <Select value={filters.page_size} onChange={(e) => update({ page_size: e.target.value })} aria-label="Rows per page" className="!h-8 !w-auto text-xs">
+                                {['10', '25', '50', '100'].map((n) => <option key={n} value={n}>{n} per page</option>)}
+                            </Select>
+                        </div>
+                        {data.pages > 1 && (
+                            <div className="flex items-center gap-1">
+                                <Button variant="secondary" size="sm" disabled={data.page <= 1} onClick={() => update({ page: String(data.page - 1) })} aria-label="Previous page">
+                                    <ChevronLeft className="h-4 w-4" />
                                 </Button>
-                                <Button variant="secondary" size="sm" disabled={data.page >= data.pages} onClick={() => update({ page: String(data.page + 1) })}>
-                                    Next <ChevronRight className="h-4 w-4" />
+                                <span className="px-2 text-slate-600">Page {data.page} of {data.pages}</span>
+                                <Button variant="secondary" size="sm" disabled={data.page >= data.pages} onClick={() => update({ page: String(data.page + 1) })} aria-label="Next page">
+                                    <ChevronRight className="h-4 w-4" />
                                 </Button>
                             </div>
-                        </div>
-                    )}
-                </Card>
-            )}
+                        )}
+                    </div>
+                )}
+            </Card>
 
             {deleting && (
                 <DeleteProduct product={deleting} auth={auth} onClose={() => setDeleting(null)}
                     onDeleted={() => { toast.success(`${deleting.name} was deleted.`); setDeleting(null); setReload((n) => n + 1) }} />
             )}
         </AdminLayout>
+    )
+}
+
+const stockText = (p) => {
+    const n = Number(p.stock_exact ?? p.countInStock) || 0
+    if (p.is_combo) return `${n} can make`
+    return `${n.toLocaleString('en-IN', { maximumFractionDigits: 3 })} ${p.unit === 'piece' || !p.unit ? 'pc' : p.unit}`
+}
+
+function Thumb({ product }) {
+    const src = product.image && !PLACEHOLDER.test(product.image) ? product.image : null
+    return (
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-white">
+            {src ? <img src={src} alt="" className="h-full w-full object-contain p-0.5" loading="lazy" />
+                : product.is_combo ? <Layers className="h-5 w-5 text-violet-400" /> : <ImageIcon className="h-5 w-5 text-slate-300" />}
+        </span>
+    )
+}
+
+function ListSkeleton() {
+    return (
+        <div className="divide-y divide-slate-100">
+            {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 px-5 py-3">
+                    <Skeleton className="h-11 w-11 rounded-lg" />
+                    <div className="flex-1 space-y-1.5"><Skeleton className="h-3.5 w-48" /><Skeleton className="h-3 w-24" /></div>
+                    <Skeleton className="h-4 w-16" />
+                </div>
+            ))}
+        </div>
     )
 }
 
@@ -203,7 +339,7 @@ function DeleteProduct({ product, auth, onClose, onDeleted }) {
         <Modal show onClose={onClose} title={`Delete ${product.name}?`} size="sm">
             <p className="text-sm text-slate-600">
                 It disappears from the shop and the counter, and its stock history is removed. Past sales keep its name.
-                {' '}If you only want to stop selling it, untick "Sell on the website" and "Sell at the shop counter" on its edit page instead.
+                {' '}If you only want to stop selling it, turn off "Shop counter" and "Website" under Where it's sold on its edit page instead.
             </p>
             {error && <Alert variant="danger" className="mt-3">{error}</Alert>}
             <div className="mt-5 flex gap-2">
@@ -216,17 +352,24 @@ function DeleteProduct({ product, auth, onClose, onDeleted }) {
 
 function StockStatus({ product }) {
     const stock = Number(product.stock_exact ?? product.countInStock) || 0
+    if (product.is_combo) return stock > 0 ? <StatusPill tone="green">Can sell</StatusPill> : <StatusPill tone="red">A part is out</StatusPill>
     if (stock <= 0) return <StatusPill tone="red">Out of stock</StatusPill>
     if (stock <= (product.reorder_level ?? 5)) return <StatusPill tone="amber">Low stock</StatusPill>
     return <StatusPill tone="green">In stock</StatusPill>
 }
 
-// Where a product is sold: both channels, one of them, or neither.
+// Where a product is sold: an icon for the counter and one for the website, dimmed when off.
 function SoldIn({ product }) {
     const online = product.sell_online !== false
     const shop = product.sell_in_shop !== false
-    const label = online && shop ? 'Shop and online' : online ? 'Online only' : shop ? 'Shop only' : 'Not for sale'
-    return <Badge variant={online && shop ? 'slate' : online || shop ? 'amber' : 'red'}>{label}</Badge>
+    if (!online && !shop) return <Badge variant="red">Not for sale</Badge>
+    const chip = (on, Icon, label) => (
+        <span title={`${label}: ${on ? 'yes' : 'no'}`}
+            className={cn('inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium', on ? 'bg-slate-100 text-slate-700' : 'text-slate-300 line-through')}>
+            <Icon className="h-3.5 w-3.5" />{label}
+        </span>
+    )
+    return <span className="inline-flex gap-1">{chip(shop, Store, 'Counter')}{chip(online, Globe, 'Online')}</span>
 }
 
 export default ProductListScreen

@@ -5,7 +5,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import {
     Maximize, Minimize, Menu, X, ExternalLink, Plus, Search, Moon, Sun, Bell, ChevronDown, ChevronRight,
     PanelLeftClose, PanelLeftOpen, Store, User, LogOut, PackageX, AlertTriangle, CalendarClock, HandCoins, Truck, Mail, CheckCircle2,
-    Building2, Check,
+    Building2, Check, ArrowLeft,
 } from 'lucide-react'
 import AdminSideBar, { initials, pageTrail } from './AdminSideBar'
 import { Button, Modal, Toaster, cn } from '../components/ui'
@@ -117,7 +117,7 @@ function useNotifications(role, token) {
         if (isManagerRole(role)) {
             jobs.push(axios.get('/api/inventory/home/', config).then(({ data }) => {
                 const a = data.alerts
-                if (a.out_of_stock) list.push({ tone: 'red', icon: PackageX, text: `${a.out_of_stock} item${a.out_of_stock === 1 ? ' is' : 's are'} out of stock`, to: '/admin/stock' })
+                if (a.out_of_stock) list.push({ tone: 'red', icon: PackageX, text: `${a.out_of_stock} product${a.out_of_stock === 1 ? ' is' : 's are'} out of stock`, to: '/admin/stock' })
                 if (a.low_stock) list.push({ tone: 'amber', icon: AlertTriangle, text: `${a.low_stock} running low`, to: '/admin/stock' })
                 if (a.expiring) list.push({ tone: 'amber', icon: CalendarClock, text: `${a.expiring} batch${a.expiring === 1 ? '' : 'es'} expiring soon`, to: '/admin/stock' })
                 if (a.dues_count) list.push({ tone: 'amber', icon: HandCoins, text: `${formatINR(a.dues_total)} owed by customers`, to: '/admin/sales' })
@@ -127,7 +127,7 @@ function useNotifications(role, token) {
         if (role === 'stock' || role === 'cashier') {
             jobs.push(axios.get('/api/inventory/summary/', config).then(({ data }) => {
                 if (role === 'stock') {
-                    if (data.low_stock && data.low_stock.length) list.push({ tone: 'amber', icon: AlertTriangle, text: `${data.low_stock.length} item${data.low_stock.length === 1 ? '' : 's'} low or out of stock`, to: '/admin/stock' })
+                    if (data.low_stock && data.low_stock.length) list.push({ tone: 'amber', icon: AlertTriangle, text: `${data.low_stock.length} product${data.low_stock.length === 1 ? '' : 's'} low or out of stock`, to: '/admin/stock' })
                     if (data.expiring && data.expiring.length) list.push({ tone: 'amber', icon: CalendarClock, text: `${data.expiring.length} batch${data.expiring.length === 1 ? '' : 'es'} expiring soon`, to: '/admin/stock' })
                 } else if (data.dues && data.dues.count) {
                     list.push({ tone: 'amber', icon: HandCoins, text: `${formatINR(data.dues.total)} owed on ${data.dues.count} bill${data.dues.count === 1 ? '' : 's'}`, to: '/admin/sales' })
@@ -203,7 +203,7 @@ function HeaderIconButton({ label, onClick, children, active }) {
 const FULL_PAGE = ['/admin/website']
 
 function AdminShell({ children }) {
-    const { pathname } = useLocation()
+    const { pathname, search: query } = useLocation()
     const history = useHistory()
     const dispatch = useDispatch()
     const { userInfo } = useSelector((state) => state.userLogin)
@@ -223,9 +223,14 @@ function AdminShell({ children }) {
     const bell = useDropdown()
     const account = useDropdown()
 
-    // The counter needs every pixel, so it always gets the narrow rail and no page padding.
+    // The counter needs every pixel: no side menu and no page padding, just a back arrow.
     const isCounter = pathname.startsWith('/admin/counter')
     const narrow = isCounter || collapsed
+    // The last admin page before the counter, for its back arrow.
+    const lastPage = useRef('')
+    useEffect(() => {
+        if (!pathname.startsWith('/admin/counter')) lastPage.current = pathname + (query || '')
+    }, [pathname, query])
 
     const name = userInfo && (userInfo.name || userInfo.email)
     const role = roleOf(userInfo)
@@ -233,7 +238,7 @@ function AdminShell({ children }) {
     const businesses = (userInfo && userInfo.businesses) || []
     const current = activeBusinessInfo(userInfo)
     const [notifications, reloadNotifications] = useNotifications(role, userInfo && userInfo.token)
-    const [section, page] = useMemo(() => pageTrail(pathname), [pathname])
+    const [section, page] = useMemo(() => pageTrail(pathname, query), [pathname, query])
 
     useEffect(() => {
         const onChange = () => setIsFullscreen(Boolean(document.fullscreenElement))
@@ -304,7 +309,7 @@ function AdminShell({ children }) {
 
     return (
         <div className={cn('relative flex h-screen overflow-hidden bg-[var(--admin-bg)] text-slate-900', theme === 'dark' && 'theme-dark')}>
-            <aside className={cn('keep-colors relative hidden shrink-0 flex-col bg-[var(--admin-sidebar)] transition-[width] duration-200 lg:flex', narrow ? 'w-[72px]' : 'w-60')}>
+            <aside className={cn('keep-colors relative hidden shrink-0 flex-col bg-[var(--admin-sidebar)] transition-[width] duration-200', !isCounter && 'lg:flex', narrow ? 'w-[72px]' : 'w-60')}>
                 <Logo compact={narrow} home={home} onToggle={isCounter ? null : toggleCollapsed} collapsed={collapsed} />
                 <div className="min-h-0 flex-1 overflow-hidden">
                     <AdminSideBar compact={narrow} />
@@ -319,9 +324,17 @@ function AdminShell({ children }) {
 
             <div className="flex min-w-0 flex-1 flex-col">
                 <header className="flex h-14 shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-4 sm:px-6">
-                    <button type="button" onClick={() => setMenuOpen(true)} className="-ml-1 rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 lg:hidden" aria-label="Open menu">
-                        <Menu className="h-5 w-5" />
-                    </button>
+                    {isCounter ? (
+                        <button type="button" title="Back" aria-label="Back"
+                            onClick={() => history.push(lastPage.current || (home === '/admin/counter' ? '/admin/sales' : home))}
+                            className="-ml-1.5 inline-flex h-9 items-center gap-1.5 rounded-lg px-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
+                            <ArrowLeft className="h-5 w-5" /> <span className="hidden sm:inline">Back</span>
+                        </button>
+                    ) : (
+                        <button type="button" onClick={() => setMenuOpen(true)} className="-ml-1 rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 lg:hidden" aria-label="Open menu">
+                            <Menu className="h-5 w-5" />
+                        </button>
+                    )}
 
                     {/* Where you are */}
                     <nav aria-label="Breadcrumb" className="hidden min-w-0 items-center gap-1.5 text-sm md:flex">
@@ -332,8 +345,8 @@ function AdminShell({ children }) {
                     {canSearch && (
                         <form onSubmit={searchProducts} role="search" className="relative ml-2 hidden w-full max-w-sm sm:block">
                             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                            <input ref={searchRef} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search items, codes…"
-                                aria-label="Search items"
+                            <input ref={searchRef} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search products, codes…"
+                                aria-label="Search products"
                                 className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-14 text-sm text-slate-900 placeholder:text-slate-400 transition-colors focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-3 focus:ring-brand-500/15" />
                             <kbd className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded border border-slate-200 bg-white px-1.5 py-0.5 font-sans text-[10px] font-semibold text-slate-400">Ctrl K</kbd>
                         </form>

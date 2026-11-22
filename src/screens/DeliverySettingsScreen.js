@@ -122,7 +122,7 @@ function DeliverySettingsScreen() {
                             <Field label="Minimum order (₹)" id="o-min" hint="0 for no minimum. Counts the goods only.">
                                 <Input id="o-min" type="number" min="0" step="0.01" inputMode="decimal" required value={form.min_order} onChange={set('min_order')} />
                             </Field>
-                            <Field label="Tax on online orders (%)" id="o-tax" hint={gstRegistered ? 'Not used: the shop is GST registered, so each item\'s GST rate applies (Settings).' : 'Added to the goods at checkout. Only for shops not registered for GST.'}>
+                            <Field label="Tax on online orders (%)" id="o-tax" hint={gstRegistered ? 'Not used: the shop is GST registered, so each product\'s GST rate applies (Settings).' : 'Added to the goods at checkout. Only for shops not registered for GST.'}>
                                 <Input id="o-tax" type="number" min="0" max="100" step="0.01" inputMode="decimal" required value={form.tax_rate} onChange={set('tax_rate')} />
                             </Field>
                         </div>

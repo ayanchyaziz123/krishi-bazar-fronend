@@ -93,7 +93,8 @@ export const productListReducer = (state = { products: [] }, action) => {
 export const productDetailsReducer = (state = { product: { reviews: [] } }, action) => {
     switch (action.type) {
         case PRODUCT_DETAILS_REQUEST:
-            return { loading: true, ...state }
+            // Keep the product on screen only while it is the one being loaded again.
+            return { ...state, loading: true, error: undefined }
 
         case PRODUCT_DETAILS_SUCCESS:
             return { loading: false, 
@@ -102,7 +103,7 @@ export const productDetailsReducer = (state = { product: { reviews: [] } }, acti
             }
 
         case PRODUCT_DETAILS_FAIL:
-            return { loading: false, error: action.payload }
+            return { loading: false, error: action.payload, product: { reviews: [] } }
 
         default:
             return state

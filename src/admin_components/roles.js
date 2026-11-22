@@ -7,7 +7,7 @@ export const ROLE_OPTIONS = [
     { value: 'cashier', label: 'Cashier', hint: 'Counter, today’s sales and money owed. No profit or buying prices.' },
     { value: 'stock', label: 'Stock keeper', hint: 'Stock, receiving and suppliers. No sales or customers.' },
     { value: 'orders', label: 'Online orders', hint: 'Website orders: check, mark paid and delivered. Contact messages. No counter, stock or profit.' },
-    { value: 'manager', label: 'Manager', hint: 'Everything, including items, prices, reports and staff.' },
+    { value: 'manager', label: 'Manager', hint: 'Everything, including products, prices, reports and staff.' },
 ]
 
 // The owner can do everything a manager can.
@@ -49,7 +49,7 @@ export const roleOf = (userInfo) => {
 }
 
 const PAGES = {
-    cashier: ['/admin/counter', '/admin/sales'],
+    cashier: ['/admin/counter', '/admin/sales', '/admin/khata'],
     stock: ['/admin/stock', '/admin/receive'],
     orders: ['/admin/orderlist', '/admin/order/', '/admin/contact'],
 }

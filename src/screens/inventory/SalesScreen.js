@@ -1,11 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Printer, Store, Globe, TrendingUp, Banknote, Smartphone, CreditCard, Wallet, Clock, ReceiptText, Undo2, Ban, Minus, Plus, Search } from 'lucide-react'
+import { Printer, Store, Globe, TrendingUp, Banknote, Smartphone, CreditCard, Wallet, Clock, ReceiptText, Undo2, Ban, Minus, Plus, Search, ChevronLeft, ChevronRight } from 'lucide-react'
 import AdminLayout from '../../admin_components/AdminLayout'
 import { Alert, Badge, Button, Card, CardHeader, Field, Input, Modal, Spinner, Table, Td, Th, cn, formatINR } from '../../components/ui'
 import Receipt, { RefundReceipt } from '../../inventory/Receipt'
 import { useAdminGuard, inventoryApi, errorText, todayInShop, formatTime, formatDateTime } from '../../inventory/api'
 
 const TABS = [['all', 'All'], ['shop', 'Counter'], ['online', 'Online']]
+// A day before or after an ISO date (YYYY-MM-DD).
+const shiftDay = (iso, days) => { const d = new Date(`${iso}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + days); return d.toISOString().slice(0, 10) }
+const dayName = (iso, today) => (iso === today ? 'Today' : iso === shiftDay(today, -1) ? 'Yesterday'
+    : new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }))
 const STATUS_TONE = {
     paid: 'green', due: 'amber', placed: 'slate', confirmed: 'sky', packed: 'sky', out_for_delivery: 'amber',
     ready_for_pickup: 'amber', delivered: 'green', cancelled: 'red', returned: 'amber', voided: 'red', return: 'red', void: 'red',
@@ -66,15 +70,23 @@ function SalesScreen({ history }) {
 
     return (
         <AdminLayout
-            title="Sales and reports"
-            subtitle="Everything sold in one day: the shop counter and the online shop together."
+            title="Sales"
+            subtitle="What was sold on a day, at the counter and online. Tap a bill to see it, print it or take a return."
             action={(
                 <div className="flex flex-wrap gap-2">
+                    <div className="flex items-center rounded-lg border border-slate-200 bg-white">
+                        <button type="button" onClick={() => setDate(shiftDay(date, -1))} aria-label="Day before" className="flex h-10 w-10 items-center justify-center text-slate-600 hover:bg-slate-50"><ChevronLeft className="h-4 w-4" /></button>
+                        <label className="relative flex h-10 min-w-[7.5rem] cursor-pointer items-center justify-center px-2 text-sm font-semibold text-slate-900">
+                            {dayName(date, todayInShop())}
+                            <input type="date" value={date} max={todayInShop()} onChange={(e) => e.target.value && setDate(e.target.value)} aria-label="Choose a day"
+                                className="absolute inset-0 cursor-pointer opacity-0" />
+                        </label>
+                        <button type="button" onClick={() => setDate(shiftDay(date, 1))} disabled={isToday} aria-label="Next day" className="flex h-10 w-10 items-center justify-center text-slate-600 hover:bg-slate-50 disabled:opacity-30"><ChevronRight className="h-4 w-4" /></button>
+                    </div>
                     <form onSubmit={(e) => { e.preventDefault(); if (findBill.trim()) openReceipt(findBill.trim().replace(/^#/, '')) }} className="relative">
                         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                         <Input value={findBill} onChange={(e) => setFindBill(e.target.value)} placeholder="Find bill #" inputMode="numeric" className="!w-36 pl-9" aria-label="Find a bill by number" />
                     </form>
-                    <Input type="date" value={date} max={todayInShop()} onChange={(e) => setDate(e.target.value)} className="!w-44" aria-label="Report date" />
                 </div>
             )}
         >
@@ -82,9 +94,9 @@ function SalesScreen({ history }) {
             {loading && !summary ? <Spinner /> : summary && (
                 <div className="space-y-6">
                     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                        <Stat icon={ReceiptText} label={isToday ? 'Total sales today' : 'Total sales'} value={formatINR(summary.all.total)}
+                        <Stat icon={ReceiptText} label={isToday ? 'Sales today' : 'Sales'} value={formatINR(summary.all.total)}
                             note={`${summary.all.count} sale${summary.all.count === 1 ? '' : 's'}, counter and online`} />
-                        <Stat icon={Store} label="Counter" value={formatINR(summary.shop.total)}
+                        <Stat icon={Store} label="At the counter" value={formatINR(summary.shop.total)}
                             note={`${summary.shop.count} bills · ${formatINR(summary.shop.collected)} collected${summary.shop.refunds > 0 ? ` · ${formatINR(summary.shop.refunds)} refunded` : ''}`} />
                         <Stat icon={Globe} label="Online" value={formatINR(summary.online.total)}
                             note={`${summary.online.count} orders · ${summary.online.delivery_count} delivery, ${summary.online.pickup_count} pick-up`} />
@@ -102,17 +114,16 @@ function SalesScreen({ history }) {
                             {summary.cancelled.refunded > 0 ? ` (${formatINR(summary.cancelled.refunded)} refunded)` : ''}. Cancelled orders are listed but not counted as sales.
                         </Alert>
                     )}
-                    {summary.missing_cost_price > 0 && (
-                        <Alert variant="info">
-                            {summary.missing_cost_price} items have no buying price, so profit on them counts the full selling price.
-                            Set buying prices on the Stock page or by receiving stock.
-                        </Alert>
+                    {showProfit && summary.missing_cost_price > 0 && (
+                        <p className="text-xs text-slate-500">
+                            Profit may be too high: {summary.missing_cost_price} products have no buying price yet. Add it on the Stock page or when you receive stock.
+                        </p>
                     )}
 
                     <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
                         <div className="min-w-0">
                             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                                <h2 className="font-semibold text-slate-900">Transactions</h2>
+                                <h2 className="font-semibold text-slate-900">Bills and orders</h2>
                                 <div className="flex gap-1 rounded-lg bg-slate-100 p-1 text-sm">
                                     {TABS.map(([key, label]) => (
                                         <button key={key} type="button" onClick={() => setTab(key)} aria-pressed={tab === key}
@@ -125,43 +136,44 @@ function SalesScreen({ history }) {
                             <Table>
                                 <thead>
                                     <tr>
-                                        <Th>Sale</Th><Th>Time</Th><Th>Channel</Th><Th>Customer</Th><Th>Payment</Th><Th>Status</Th>
-                                        <Th className="text-right">Total</Th>{showProfit && <Th className="text-right">Profit</Th>}
+                                        <Th>Bill</Th><Th>Time</Th><Th>Customer</Th><Th>Paid by</Th>
+                                        <Th className="text-right">Amount</Th>{showProfit && <Th className="text-right">Profit</Th>}
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
                                     {shown.map((r) => (
                                         <tr key={`${r.kind}-${r.id}`} onClick={() => open(r)} className={cn('cursor-pointer hover:bg-slate-50/60', !r.counted && 'opacity-60')}>
                                             <Td className="whitespace-nowrap font-semibold text-slate-900">
+                                                <span className="mr-1.5 inline-block align-[-2px]" title={r.kind === 'online' ? `Online · ${r.channel.replace('Online · ', '')}` : 'Counter'}>
+                                                    {r.kind === 'online' ? <Globe className="h-4 w-4 text-sky-500" /> : <Store className="h-4 w-4 text-slate-400" />}
+                                                </span>
                                                 {r.kind === 'refund' ? <span className="text-rose-600">{r.status === 'void' ? 'Void' : 'Refund'} · bill #{r.sale}</span> : `${r.kind === 'shop' ? 'Bill' : 'Order'} #${r.id}`}
                                                 {r.entered_later && <span className="ml-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800" title="Typed in later from a paper record">Entered later</span>}
                                             </Td>
                                             <Td>{formatTime(r.createdAt)}</Td>
-                                            <Td>
-                                                <span className="inline-flex items-center gap-1.5 text-slate-700">
-                                                    {r.kind === 'shop' ? <Store className="h-4 w-4 text-slate-400" /> : <Globe className="h-4 w-4 text-sky-500" />} {r.channel.replace('Online · ', '')}
-                                                </span>
-                                            </Td>
                                             <Td>{r.customer || <span className="text-slate-400">{r.kind === 'online' ? 'Customer' : 'Walk-in'}</span>}</Td>
                                             <Td>{r.payment}</Td>
-                                            <Td>
-                                                <Badge variant={STATUS_TONE[r.status] || 'slate'}>{r.status === 'due' ? `Due ${formatINR(r.due)}` : r.status_label}</Badge>
+                                            <Td className="text-right">
+                                                <span className={cn('block font-semibold', !r.counted && 'line-through', r.total < 0 && 'text-rose-600')}>{r.total < 0 ? `−${formatINR(-r.total)}` : formatINR(r.total)}</span>
+                                                {/* Only say something when the bill is not simply paid. */}
+                                                {!['paid', 'delivered', 'return', 'void'].includes(r.status) && (
+                                                    <Badge variant={STATUS_TONE[r.status] || 'slate'} className="mt-0.5">{r.status === 'due' ? `${formatINR(r.due)} owed` : r.status_label}</Badge>
+                                                )}
                                             </Td>
-                                            <Td className={cn('text-right font-semibold', !r.counted && 'line-through', r.total < 0 && 'text-rose-600')}>{r.total < 0 ? `−${formatINR(-r.total)}` : formatINR(r.total)}</Td>
                                             {showProfit && <Td className={cn('text-right', r.profit < 0 && 'text-rose-600')}>{r.counted ? (r.profit < 0 ? `−${formatINR(-r.profit)}` : formatINR(r.profit)) : '–'}</Td>}
                                         </tr>
                                     ))}
                                     {shown.length === 0 && (
-                                        <tr><Td colSpan={8} className="py-10 text-center text-slate-500">No {tab === 'shop' ? 'counter sales' : tab === 'online' ? 'online orders' : 'sales'} on this day.</Td></tr>
+                                        <tr><Td colSpan={6} className="py-10 text-center text-slate-500">No {tab === 'shop' ? 'counter sales' : tab === 'online' ? 'online orders' : 'sales'} on this day.</Td></tr>
                                     )}
                                 </tbody>
                             </Table>
-                            <p className="mt-2 text-xs text-slate-400">Click a counter bill for its receipt, or an online order to open it.</p>
+                            <p className="mt-2 text-xs text-slate-400"><Store className="inline h-3.5 w-3.5" /> counter bill · <Globe className="inline h-3.5 w-3.5 text-sky-500" /> online order</p>
                         </div>
 
                         <div className="space-y-6">
                             <Card>
-                                <CardHeader title="Payments" subtitle="How the money came in" />
+                                <CardHeader title="Money received" subtitle="By cash, UPI, card and online" />
                                 <ul className="space-y-2.5 px-6 pb-5 text-sm">
                                     {PAYMENT_ROWS.filter(([key]) => payments[key] > 0 || ['cash', 'upi', 'card', 'online'].includes(key)).map(([key, label, Icon]) => (
                                         <li key={key}>
@@ -191,10 +203,11 @@ function SalesScreen({ history }) {
                             </Card>
 
                             <Card>
-                                <CardHeader title="Unpaid bills" subtitle={`${formatINR(summary.dues.total)} owed in total`} />
+                                <CardHeader title="Owed to the shop" subtitle={`${formatINR(summary.dues.total)} in total · tap an amount to take payment`}
+                                    action={<Button size="sm" variant="secondary" to="/admin/khata">Khata</Button>} />
                                 {dues.length === 0 ? <p className="px-6 py-4 text-sm text-slate-500">Nobody owes anything.</p> : (
                                     <ul className="divide-y divide-slate-100 text-sm">
-                                        {dues.map((d) => (
+                                        {dues.slice(0, 5).map((d) => (
                                             <li key={d.id} className="flex items-center justify-between gap-2 px-6 py-2.5">
                                                 <div>
                                                     <p className="font-semibold text-slate-900">{d.customer_name}</p>
@@ -203,6 +216,9 @@ function SalesScreen({ history }) {
                                                 <Button size="sm" variant="secondary" onClick={() => setCollecting(d)}>{formatINR(d.due)}</Button>
                                             </li>
                                         ))}
+                                        {dues.length > 5 && (
+                                            <li className="px-6 py-2.5 text-center"><Button size="sm" variant="ghost" to="/admin/khata">See all {dues.length} in the khata</Button></li>
+                                        )}
                                     </ul>
                                 )}
                             </Card>

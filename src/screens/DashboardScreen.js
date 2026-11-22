@@ -11,6 +11,7 @@ import { inventoryApi, errorText, formatTime, todayInShop } from '../inventory/a
 import { useStoreBrand } from '../components/storeBrand'
 import KpiCard from '../admin_components/KpiCard'
 import AIInsights from '../admin_components/AIInsights'
+import GetStarted from '../admin_components/GetStarted'
 
 // Shop counter vs online. A validated pair for the light surface.
 const SERIES = [
@@ -21,7 +22,7 @@ const SERIES = [
 // Each payment type keeps the same colour everywhere (colour follows the method, not its rank).
 const PAYMENT_COLOURS = {
     Cash: '#059669', UPI: '#2563eb', Card: '#d97706', bKash: '#db2777', Nagad: '#7c3aed',
-    'Due (pay later)': '#0891b2', 'Online orders': '#64748b',
+    'Due (pay later)': '#e11d48', 'Pay later (owed)': '#e11d48', 'Online orders': '#64748b',
 }
 const paymentColour = (method) => PAYMENT_COLOURS[method] || '#94a3b8'
 
@@ -73,6 +74,8 @@ function DashboardScreen() {
                 </div>
             </div>
             <p className="-mt-3 text-xs text-slate-500">{store.name}{store.location ? `, ${store.location}` : ''} · showing {isToday ? 'today, ' : ''}{longDate(day)}. Changes compare with the same day a week earlier.</p>
+
+            <GetStarted userInfo={userInfo} />
 
             <QuickActions />
 
@@ -130,7 +133,7 @@ function QuickActions() {
     const actions = [
         { to: '/admin/counter', label: 'New sale', hint: 'Open the counter', icon: Store, primary: true },
         { to: '/admin/receive', label: 'Receive stock', hint: 'Record a delivery', icon: PackagePlus },
-        { to: '/admin/productlist', label: 'Items', hint: 'Prices and details', icon: Package },
+        { to: '/admin/productlist', label: 'Products', hint: 'Prices and details', icon: Package },
         { to: '/admin/orderlist', label: 'Online orders', hint: 'Check and deliver', icon: ShoppingCart },
     ]
     return (
@@ -377,7 +380,7 @@ function NeedsAttention({ alerts, loading }) {
 
 function TopItems({ items, loading, isToday }) {
     return (
-        <Panel title={isToday ? 'Top items today' : 'Top items that day'}>
+        <Panel title={isToday ? 'Top products today' : 'Top products that day'}>
             {loading ? (
                 <div className="space-y-2 p-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-5 w-full" />)}</div>
             ) : !items || items.length === 0 ? (

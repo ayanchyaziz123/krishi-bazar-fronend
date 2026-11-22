@@ -102,9 +102,9 @@ function SettingsScreen() {
 
                     <Card className="rounded-xl p-6">
                         <h2 className="mb-1 font-semibold text-slate-900">GST</h2>
-                        <p className="mb-4 text-sm text-slate-500">How the shop charges GST at the counter and online. Each item's HSN code and GST rate are set on the Items page.</p>
+                        <p className="mb-4 text-sm text-slate-500">How the shop charges GST at the counter and online. Each item's HSN code and GST rate are set on the Products page.</p>
                         <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="GST registration">
-                            {[['none', 'Not registered', 'No GST on bills.'], ['regular', 'Regular GST', 'GST per item; tax invoices.'], ['composition', 'Composition scheme', 'No GST charged; bill of supply.']].map(([value, label, hint]) => (
+                            {[['none', 'Not registered', 'No GST on bills.'], ['regular', 'Regular GST', 'GST per product; tax invoices.'], ['composition', 'Composition scheme', 'No GST charged; bill of supply.']].map(([value, label, hint]) => (
                                 <button key={value} type="button" role="radio" aria-checked={g.mode === value} onClick={() => setGst({ mode: value })}
                                     className={cn('rounded-xl p-3 text-left ring-1 transition', g.mode === value ? 'bg-brand-50 ring-2 ring-brand-600' : 'ring-slate-200 hover:ring-slate-300')}>
                                     <span className="block text-sm font-semibold text-slate-900">{label}</span>
@@ -169,7 +169,7 @@ function SettingsScreen() {
                             <div className="flex flex-wrap items-center gap-2">
                                 <span className="inline-flex h-9 items-center rounded-lg bg-brand-600 px-3 text-sm font-semibold text-white">Charge ₹450</span>
                                 <Badge variant="brand">Sale</Badge>
-                                <a href="#preview" onClick={(e) => e.preventDefault()} className="font-semibold text-brand-700">View items</a>
+                                <a href="#preview" onClick={(e) => e.preventDefault()} className="font-semibold text-brand-700">View products</a>
                             </div>
                             <div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full w-2/3 rounded-full bg-brand-500" /></div>
                             <p className="text-xs text-slate-500">{form.address}{form.location && !String(form.address || '').includes(form.location) ? ` · ${form.location}` : ''}</p>

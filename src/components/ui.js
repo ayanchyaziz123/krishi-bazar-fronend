@@ -31,7 +31,7 @@ const buttonSizes = {
     icon: 'h-9 w-9',
 }
 
-export function Button({ variant = 'primary', size = 'md', block, to, className, children, ...props }) {
+export function Button({ variant = 'primary', size = 'md', block, to, href, className, children, ...props }) {
     const classes = cn(
         'inline-flex items-center justify-center whitespace-nowrap rounded-lg font-semibold transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:pointer-events-none disabled:opacity-50',
         buttonVariants[variant],
@@ -41,6 +41,9 @@ export function Button({ variant = 'primary', size = 'md', block, to, className,
     )
     if (to) {
         return <Link to={to} className={classes} {...props}>{children}</Link>
+    }
+    if (href) {
+        return <a href={href} className={classes} {...props}>{children}</a>
     }
     return <button type="button" className={classes} {...props}>{children}</button>
 }

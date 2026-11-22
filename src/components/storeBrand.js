@@ -7,11 +7,13 @@ import { shopSlug } from './shopSlug'
 // The store's name, details and colour, read from the server and shared by every page.
 // The colour becomes the brand palette (brand-50 … brand-950) used across the site.
 
+// Shown only until the store's own details arrive, so it names no particular store:
+// every shop on the platform starts from these.
 export const DEFAULT_STORE = {
-    name: 'Krishi Bazar',
-    tagline: 'Fresh produce and crafts from local farms',
-    location: 'Sylhet',
-    address: '121, Zindabazar, Sylhet, Bangladesh',
+    name: '',
+    tagline: '',
+    location: '',
+    address: '',
     phone: '',
     email: '',
     accent: '#059669',

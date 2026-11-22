@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import { NavLink, useHistory } from 'react-router-dom'
 import {
     LayoutDashboard, Users, Tag, Package, ShoppingCart, Mail, LogOut,
-    Store, Boxes, PackagePlus, Receipt, UserCog, Settings, Globe, Truck, Landmark,
+    BookUser, Store, Boxes, PackagePlus, Receipt, UserCog, Settings, Globe, Truck, Landmark,
 } from 'lucide-react'
 import { logout } from '../actions/userActions'
 import { cn } from '../components/ui'
@@ -20,14 +20,15 @@ export const NAV_SECTIONS = [
         title: 'Shop counter',
         links: [
             { to: '/admin/counter', label: 'Counter sale', short: 'Register', icon: Store },
-            { to: '/admin/sales', label: 'Sales & reports', short: 'Sales', icon: Receipt },
+            { to: '/admin/sales', label: 'Sales', short: 'Sales', icon: Receipt },
+            { to: '/admin/khata', label: 'Khata (udhaar)', short: 'Khata', icon: BookUser },
             { to: '/admin/gst', label: 'GST report', short: 'GST', icon: Landmark },
         ],
     },
     {
         title: 'Catalog & stock',
         links: [
-            { to: '/admin/productlist', label: 'Items', short: 'Items', icon: Package, also: ['/admin/product/'] },
+            { to: '/admin/productlist', label: 'Products', short: 'Products', icon: Package, also: ['/admin/product/'] },
             { to: '/brand', label: 'Categories', short: 'Groups', icon: Tag },
             { to: '/admin/stock', label: 'Stock', short: 'Stock', icon: Boxes },
             { to: '/admin/receive', label: 'Receive stock', short: 'Receive', icon: PackagePlus },
@@ -58,14 +59,15 @@ export const NAV_SECTIONS = [
 ]
 
 const DETAIL_TITLES = [
-    ['/admin/product/new', 'New item'],
-    ['/admin/product/', 'Edit item'],
+    ['/admin/product/new', 'New product'],
+    ['/admin/product/', 'Edit product'],
     ['/admin/order/', 'Order details'],
     ['/admin/user/', 'Edit user'],
 ]
 
 // Section and page name for the header, e.g. ["Catalog & stock", "Items"].
-export function pageTrail(pathname) {
+export function pageTrail(pathname, search = '') {
+    if (pathname === '/admin/product/new' && /[?&]combo=1/.test(search)) return ['Products', 'New combo']
     for (const section of NAV_SECTIONS) {
         for (const link of section.links) {
             if (pathname === link.to || pathname.startsWith(`${link.to}/`)) return [section.title, link.label]

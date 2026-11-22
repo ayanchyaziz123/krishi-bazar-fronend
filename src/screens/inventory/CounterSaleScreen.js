@@ -1,14 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Search, Minus, Plus, Trash2, Printer, ShoppingBasket, RotateCcw, X, Keyboard, Undo2, History } from 'lucide-react'
+import { Search, Minus, Plus, Trash2, Printer, ShoppingBasket, RotateCcw, X, Undo2, History, HelpCircle, Banknote, Smartphone, CreditCard, Package, UserPlus, Tag } from 'lucide-react'
 import { Alert, Button, Card, Input, Modal, Spinner, cn, formatINR } from '../../components/ui'
 import { useCategories } from '../../components/categories'
 import Receipt from '../../inventory/Receipt'
+import CustomerPicker from './CustomerPicker'
 import { useAdminGuard, inventoryApi, errorText, PAYMENT_METHODS, formatTime, todayInShop } from '../../inventory/api'
 import { isManagerRole, roleOf } from '../../admin_components/roles'
 import { chargesGst, gstFor, gstOf } from '../../components/shop/gst'
 import { useStoreBrand } from '../../components/storeBrand'
 
 // Quantities are whole units, or up to 3 decimals for items sold loose by weight.
+const PAY_ICONS = { cash: Banknote, upi: Smartphone, card: CreditCard }
+const PLACEHOLDER = /placeholder/
+
 const roundQty = (n) => Math.round(n * 1000) / 1000
 const fmtQty = (n) => String(roundQty(Number(n) || 0))
 const qtyStep = (product) => (product.sold_by_weight ? 0.25 : 1)
@@ -64,6 +68,8 @@ function CounterSaleScreen({ history }) {
     const [customerName, setCustomerName] = useState('')
     const [customerPhone, setCustomerPhone] = useState('')
     const [amountPaid, setAmountPaid] = useState('')
+    // Pay later (udhaar): the customer pays some or nothing now and owes the rest.
+    const [payLater, setPayLater] = useState(false)
     const [cashGiven, setCashGiven] = useState('')
 
     const [saving, setSaving] = useState(false)
@@ -78,6 +84,10 @@ function CounterSaleScreen({ history }) {
     const [confirmClear, setConfirmClear] = useState(false)
     const [flashId, setFlashId] = useState(null)
     const [restored, setRestored] = useState(false)
+    const [showTips, setShowTips] = useState(false)
+    // Optional parts of the bill stay folded away until needed.
+    const [showCustomer, setShowCustomer] = useState(false)
+    const [showDiscount, setShowDiscount] = useState(false)
 
     const searchRef = useRef(null)
     const billRef = useRef(null)
@@ -116,6 +126,8 @@ function CounterSaleScreen({ history }) {
                 setCart(lines)
                 setDiscount(draft.discount || '')
                 setPayment(PAYMENT_METHODS.some((m) => m.value === draft.payment) ? draft.payment : 'cash')
+                setPayLater(Boolean(draft.payLater) || draft.payment === 'due')
+                setAmountPaid(draft.amountPaid || '')
                 setCustomerName(draft.customerName || '')
                 setCustomerPhone(draft.customerPhone || '')
                 setRestored(true)
@@ -130,19 +142,37 @@ function CounterSaleScreen({ history }) {
             if (cart.length === 0) localStorage.removeItem(draftKey)
             else localStorage.setItem(draftKey, JSON.stringify({
                 cart: cart.map((l) => ({ id: l.product._id, qty: Number(l.qty) || 1 })),
-                discount, payment, customerName, customerPhone,
+                discount, payment, customerName, customerPhone, payLater, amountPaid,
             }))
         } catch (e) { /* ignore */ }
-    }, [cart, discount, payment, customerName, customerPhone, draftKey])
+    }, [cart, discount, payment, customerName, customerPhone, payLater, amountPaid, draftKey])
 
     // The counter only offers items sold in the shop.
     const shopProducts = products.filter((p) => p.sell_in_shop !== false)
+
+    // Category buttons: the shop's categories that have something to sell here, then any
+    // category typed on a product that no category covers yet, then Combos.
+    const COMBOS = '__combos'
+    const inCategory = (p, keyword) => !keyword || (keyword === COMBOS ? p.is_combo : !p.is_combo && (p.category || '').toLowerCase().includes(keyword))
+    const chips = useMemo(() => {
+        const catOf = (p) => (p.category || '').trim().toLowerCase()
+        const list = categories.filter((c) => shopProducts.some((p) => !p.is_combo && catOf(p).includes(c.keyword)))
+            .map((c) => ({ keyword: c.keyword, label: c.label }))
+        const extra = new Map()
+        shopProducts.forEach((p) => {
+            const cat = catOf(p)
+            if (!p.is_combo && cat && !categories.some((c) => cat.includes(c.keyword)) && !extra.has(cat)) extra.set(cat, p.category.trim())
+        })
+        ;[...extra].sort((a, b) => a[1].localeCompare(b[1])).forEach(([keyword, label]) => list.push({ keyword, label }))
+        if (shopProducts.some((p) => p.is_combo)) list.push({ keyword: COMBOS, label: 'Combos' })
+        return list
+    }, [categories, shopProducts])
 
     const visible = shopProducts
         .filter((p) => {
             const text = `${p.name} ${p.category} ${p.code || ''}`.toLowerCase()
             const matchesQuery = !query || query.toLowerCase().split(/\s+/).every((word) => text.includes(word))
-            const matchesCategory = !category || (p.category || '').toLowerCase().includes(category)
+            const matchesCategory = inCategory(p, category)
             return matchesQuery && matchesCategory
         })
         // Items that can be sold first, sold-out items last.
@@ -230,8 +260,10 @@ function CounterSaleScreen({ history }) {
         : { tax: 0, added: 0 }
     const total = Math.max(subtotal - discountValue, 0) + gstOnBill.added
     const cashValue = Number(cashGiven) || 0
-    const change = payment === 'cash' && cashValue > total ? cashValue - total : 0
-    const short = payment === 'cash' && cashGiven !== '' && cashValue < total ? total - cashValue : 0
+    const change = payment === 'cash' && !payLater && cashValue > total ? cashValue - total : 0
+    const short = payment === 'cash' && !payLater && cashGiven !== '' && cashValue < total ? total - cashValue : 0
+    const paidNow = Number(amountPaid) || 0
+    const owedNow = payLater ? Math.max(total - paidNow, 0) : 0
     const overStock = cart.some((l) => Number(l.qty) > l.product.countInStock)
     const badQty = cart.map(qtyProblem).find(Boolean) || ''
 
@@ -249,14 +281,16 @@ function CounterSaleScreen({ history }) {
     else if (badQty) blocker = badQty
     else if (overStock) blocker = 'One item has more than the stock available.'
     else if (Number(discount) > subtotal) blocker = 'The discount is more than the bill.'
-    else if (payment === 'cash' && total > 0 && cashGiven === '') blocker = 'Enter the cash the customer gave, or tap Exact.'
+    else if (payment === 'cash' && !payLater && total > 0 && cashGiven === '') blocker = 'Enter the cash the customer gave, or tap Exact.'
     else if (short > 0) blocker = `Cash given is ${formatINR(short)} short.`
-    else if (payment === 'due' && !(customerName.trim() && customerPhone.trim())) blocker = 'A due sale needs the customer name and phone.'
+    else if (payLater && !(customerName.trim() && customerPhone.trim())) blocker = 'Pay later needs the customer name and phone.'
+    else if (payLater && paidNow > total) blocker = 'Paid now is more than the bill.'
     else if (past && (!past.date || `${past.date}T${past.time || '12:00'}` > new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16))) blocker = 'Choose a date and time in the past for this sale.'
 
     const resetSale = () => {
-        setCart([]); setDiscount(''); setPayment('cash'); setCustomerName('')
+        setCart([]); setDiscount(''); setPayment('cash'); setPayLater(false); setCustomerName('')
         setCustomerPhone(''); setAmountPaid(''); setCashGiven(''); setSaleError(''); setRestored(false)
+        setShowCustomer(false); setShowDiscount(false)
     }
 
     const focusSearch = () => {
@@ -272,7 +306,8 @@ function CounterSaleScreen({ history }) {
             discount: discountValue,
             customer_name: customerName,
             customer_phone: customerPhone,
-            amount_paid: payment === 'due' ? (amountPaid || 0) : undefined,
+            pay_later: payLater || undefined,
+            amount_paid: payLater ? (amountPaid || 0) : undefined,
             items: cart.map((l) => ({ product: l.product._id, qty: Number(l.qty) })),
             sold_at: past ? `${past.date}T${past.time || '12:00'}` : undefined,
         })
@@ -317,7 +352,7 @@ function CounterSaleScreen({ history }) {
             if (entry && entry.amount !== undefined) {
                 const { product, amount } = entry
                 const qty = product.sold_by_weight ? qtyForAmount(product, amount) : 0
-                if (!product.sold_by_weight) setSaleError(`${product.name} is sold in whole ${product.unit}s. ₹ amounts are for items sold loose by weight.`)
+                if (!product.sold_by_weight) setSaleError(`${product.name} is sold in whole ${product.unit}s. ₹ amounts are for products sold loose by weight.`)
                 else if (product.countInStock <= 0) setSaleError(`${product.name} is out of stock.`)
                 else if (!(qty > 0)) setSaleError(`₹${amount} is not enough for any ${product.name}.`)
                 else { addToCart(product, qty); setQuery('') }
@@ -340,9 +375,27 @@ function CounterSaleScreen({ history }) {
 
     return (
         <div className="flex flex-col lg:h-full">
-            <div className="flex flex-1 flex-col gap-4 p-4 lg:grid lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_24rem] xl:grid-cols-[minmax(0,1fr)_26rem]">
+            <div className="flex flex-1 flex-col gap-3 p-3 lg:grid lg:min-h-0 lg:grid-cols-[10rem_minmax(0,1fr)_23rem] lg:gap-0 lg:p-0 xl:grid-cols-[12rem_minmax(0,1fr)_25rem]">
+                {/* Categories down the left, like a POS register (wide screens) */}
+                <nav aria-label="Categories" className="hidden min-h-0 flex-col overflow-hidden border-r border-slate-200 bg-white lg:flex">
+                    <div className="thin-scroll min-h-0 flex-1 space-y-0.5 overflow-y-auto p-2">
+                        {[{ keyword: '', label: 'All products' }, ...chips].map((c) => {
+                            const active = category === c.keyword
+                            const count = shopProducts.filter((p) => inCategory(p, c.keyword)).length
+                            return (
+                                <button key={c.keyword || 'all'} type="button" onClick={() => setCategory(c.keyword)} aria-pressed={active}
+                                    className={cn('flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition',
+                                        active ? 'bg-brand-600 text-white' : 'text-slate-700 hover:bg-slate-100')}>
+                                    <span className="min-w-0 truncate">{c.label}</span>
+                                    <span className={cn('shrink-0 rounded-full px-1.5 text-xs', active ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500')}>{count}</span>
+                                </button>
+                            )
+                        })}
+                    </div>
+                </nav>
+
                 {/* Product picker */}
-                <div className="flex min-w-0 flex-col lg:min-h-0">
+                <div className="flex min-w-0 flex-col lg:min-h-0 lg:px-3 lg:pt-3">
                     <div className="relative mb-3 shrink-0">
                         <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
                         <Input
@@ -351,29 +404,58 @@ function CounterSaleScreen({ history }) {
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
                             onKeyDown={onSearchKey}
-                            placeholder="Name or code, then Enter. 1.5*rice = 1.5 kg, ₹100*rice = ₹100 worth."
-                            className="!h-12 pl-12 pr-10 text-base"
-                            aria-label="Search items"
+                            placeholder="Search a product by name or code"
+                            className="!h-12 pl-12 pr-20 text-base"
+                            aria-label="Search products"
                         />
-                        {query && (
-                            <button type="button" onClick={() => { setQuery(''); focusSearch() }} aria-label="Clear search"
-                                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
-                                <X className="h-4 w-4" />
+                        <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
+                            {query && (
+                                <button type="button" onClick={() => { setQuery(''); focusSearch() }} aria-label="Clear search"
+                                    className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                                    <X className="h-4 w-4" />
+                                </button>
+                            )}
+                            <button type="button" onClick={() => setShowTips((v) => !v)} aria-expanded={showTips} aria-label="How to use the counter" title="How to use the counter"
+                                className={cn('rounded-full p-1.5 hover:bg-slate-100 hover:text-slate-700', showTips ? 'text-brand-700' : 'text-slate-400')}>
+                                <HelpCircle className="h-5 w-5" />
                             </button>
-                        )}
+                        </div>
                     </div>
-                    <div className="mb-3 flex shrink-0 gap-2 overflow-x-auto pb-1">
+                    {showTips && (
+                        <div className="mb-3 shrink-0 rounded-xl border border-brand-200 bg-brand-50/60 p-4 text-sm text-slate-700">
+                            <div className="mb-2 flex items-center justify-between">
+                                <p className="font-semibold text-slate-900">How to make a bill</p>
+                                <button type="button" onClick={() => setShowTips(false)} aria-label="Close tips" className="text-slate-400 hover:text-slate-700"><X className="h-4 w-4" /></button>
+                            </div>
+                            <ol className="list-decimal space-y-1 pl-5">
+                                <li><b>Tap a product</b> to put it on the bill. Tap again for one more.</li>
+                                <li>Check the bill on the right. Use <b>−</b> and <b>+</b> to change how many.</li>
+                                <li>Choose <b>Cash</b>, <b>UPI</b> or <b>Card</b>, then press the green <b>Charge</b> button.</li>
+                            </ol>
+                            <p className="mt-3 font-semibold text-slate-900">Faster with the keyboard</p>
+                            <ul className="mt-1 grid gap-x-6 gap-y-1 text-xs text-slate-600 sm:grid-cols-2">
+                                <li><Kbd>101</Kbd> then <Kbd>Enter</Kbd>: add the product with code 101</li>
+                                <li><Kbd>2*101</Kbd>: add 2 of code 101</li>
+                                <li><Kbd>1.5*rice</Kbd>: add 1.5 kg of rice</li>
+                                <li><Kbd>₹100*rice</Kbd>: add ₹100 worth of rice</li>
+                                <li><Kbd>/</Kbd>: go to the search box · <Kbd>Esc</Kbd>: clear it</li>
+                                <li><Kbd>F9</Kbd>: charge the bill</li>
+                            </ul>
+                        </div>
+                    )}
+                    {/* Smaller screens: categories as a row of buttons */}
+                    <div className="thin-scroll mb-3 flex shrink-0 gap-2 overflow-x-auto pb-1 lg:hidden">
                         <Chip active={!category} onClick={() => setCategory('')}>All</Chip>
-                        {categories.map((c) => (
+                        {chips.map((c) => (
                             <Chip key={c.keyword} active={category === c.keyword} onClick={() => setCategory(c.keyword)}>
                                 {c.label}
                             </Chip>
                         ))}
                     </div>
 
-                    <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
+                    <div className="thin-scroll lg:-mr-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
                         {loading && products.length === 0 ? <Spinner /> : loadError ? <Alert variant="danger">{loadError}</Alert> : (
-                            <div className="grid grid-cols-3 gap-2 pb-4 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
+                            <div className="grid grid-cols-3 gap-2 pb-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-7">
                                 {visible.map((p, i) => {
                                     const line = inCart(p._id)
                                     const soldOut = p.countInStock <= 0
@@ -391,7 +473,9 @@ function CounterSaleScreen({ history }) {
                                                 line ? 'border-brand-500' : isFirstMatch ? 'border-brand-300 border-dashed' : 'border-transparent'
                                             )}
                                         >
-                                            {p.image && <img src={p.image} alt="" className="h-16 w-full object-cover" />}
+                                            {p.image && !PLACEHOLDER.test(p.image)
+                                                ? <img src={p.image} alt="" className="h-16 w-full object-cover" />
+                                                : <span className="flex h-16 w-full items-center justify-center bg-slate-50 text-slate-300"><Package className="h-6 w-6" /></span>}
                                             {line && (
                                                 <span className="absolute right-1.5 top-1.5 flex h-6 min-w-6 items-center justify-center rounded-full bg-brand-600 px-1.5 text-xs font-bold text-white shadow">{fmtQty(line.qty)}</span>
                                             )}
@@ -402,12 +486,17 @@ function CounterSaleScreen({ history }) {
                                                 <span className="absolute left-1.5 top-1.5 rounded-full bg-slate-900/80 px-1.5 py-0.5 text-[10px] font-semibold text-white">Sold out</span>
                                             )}
                                             <div className="flex flex-1 flex-col px-2 py-1.5">
-                                                <p className="line-clamp-2 text-xs font-semibold leading-snug text-slate-900">{p.name}</p>
+                                                <p className="line-clamp-2 text-xs font-semibold leading-snug text-slate-900">
+                                                    {p.is_combo && <span className="mr-1 rounded bg-amber-100 px-1 py-px text-[10px] font-bold uppercase text-amber-800">Combo</span>}
+                                                    {p.name}
+                                                </p>
                                                 <p className="mt-auto pt-1 text-sm font-bold text-brand-700">
                                                     {formatINR(p.selling_price)}<span className="text-xs font-normal text-slate-500"> / {p.unit}</span>
                                                 </p>
                                                 <p className={cn('text-[11px] leading-tight', soldOut ? 'text-rose-600' : p.low_stock ? 'font-semibold text-amber-600' : 'text-slate-500')}>
-                                                    {soldOut ? 'Out of stock' : maxed ? 'All stock is on the bill' : p.low_stock ? `Only ${fmtQty(p.countInStock)} ${p.unit} left` : `${fmtQty(p.countInStock)} ${p.unit} in stock`}
+                                                    {soldOut ? (p.is_combo ? 'An item inside is out' : 'Out of stock') : maxed ? 'All stock is on the bill'
+                                                        : p.is_combo ? `Can make ${fmtQty(p.countInStock)}`
+                                                            : p.low_stock ? `Only ${fmtQty(p.countInStock)} ${p.unit} left` : `${fmtQty(p.countInStock)} ${p.unit} in stock`}
                                                 </p>
                                             </div>
                                             {isFirstMatch && (
@@ -419,26 +508,17 @@ function CounterSaleScreen({ history }) {
                                 {visible.length === 0 && (
                                     <div className="col-span-full py-12 text-center text-slate-500">
                                         No items match "{query}".{' '}
-                                        <button type="button" className="font-semibold text-brand-700 hover:underline" onClick={() => { setQuery(''); setCategory('') }}>Show all items</button>
+                                        <button type="button" className="font-semibold text-brand-700 hover:underline" onClick={() => { setQuery(''); setCategory('') }}>Show all products</button>
                                     </div>
                                 )}
                             </div>
                         )}
                     </div>
 
-                    <p className="hidden shrink-0 items-center gap-3 pt-2 text-xs text-slate-400 lg:flex">
-                        <Keyboard className="h-3.5 w-3.5" />
-                        <span><Kbd>/</Kbd> search</span>
-                        <span><Kbd>Enter</Kbd> add first match</span>
-                        <span><Kbd>2*101</Kbd> or <Kbd>1.5*rice</Kbd> quantity</span>
-                        <span><Kbd>₹100*rice</Kbd> rupees' worth</span>
-                        <span><Kbd>Esc</Kbd> clear search</span>
-                        <span><Kbd>F9</Kbd> or <Kbd>Ctrl</Kbd>+<Kbd>Enter</Kbd> charge</span>
-                    </p>
                 </div>
 
                 {/* Bill */}
-                <Card className="flex scroll-mt-4 flex-col lg:min-h-0">
+                <Card className="flex scroll-mt-4 flex-col lg:min-h-0 lg:rounded-none lg:border-0 lg:border-l lg:shadow-none">
                     <div ref={billRef} />
                     {past && (
                         <div className="shrink-0 space-y-2 border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-900">
@@ -455,12 +535,12 @@ function CounterSaleScreen({ history }) {
                             <p>Goes into the report for {pastLabel || 'the day you choose'}. Stock goes down now. Each bill is marked “entered later”.</p>
                         </div>
                     )}
-                    <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-100 px-4 py-2">
+                    <div className="shrink-0 space-y-1 border-b border-slate-100 px-4 py-2">
                         <div>
-                            <h3 className="text-sm font-semibold text-slate-900">{past ? 'Past bill' : 'Current bill'} {itemCount > 0 && <span className="font-normal text-slate-500">· {itemCount} {itemCount === 1 ? 'item' : 'items'}</span>}</h3>
+                            <h3 className="whitespace-nowrap text-sm font-semibold text-slate-900">{past ? 'Past bill' : 'Current bill'} {itemCount > 0 && <span className="font-normal text-slate-500">· {itemCount} {itemCount === 1 ? 'item' : 'items'}</span>}</h3>
                             {today && <p className="text-xs text-slate-500">Today: {today.count} {today.count === 1 ? 'bill' : 'bills'} · {formatINR(today.total)}</p>}
                         </div>
-                        <div className="flex gap-1">
+                        <div className="-ml-2 flex flex-wrap gap-1">
                             {canRecordPast && !past && (
                                 <Button variant="ghost" size="sm" className="!h-7 !px-2" title="Type in sales written down on paper earlier"
                                     onClick={() => {
@@ -497,10 +577,11 @@ function CounterSaleScreen({ history }) {
                         <div className="flex flex-1 flex-col items-center justify-center gap-1.5 px-4 py-8 text-center text-xs text-slate-500">
                             <ShoppingBasket className="h-8 w-8 text-slate-300" />
                             <p className="font-medium text-slate-600">The bill is empty</p>
-                            <p>Tap an item, or type its name and press Enter.</p>
+                            <p>Tap a product on the left to add it.</p>
                         </div>
                     ) : (
-                        <div className="divide-y divide-slate-100 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+                        <div className="thin-scroll lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+                          <div className="divide-y divide-slate-100 border-b border-slate-100">
                             {cart.map((l) => {
                                 const over = Number(l.qty) > l.product.countInStock
                                 const step = qtyStep(l.product)
@@ -508,7 +589,14 @@ function CounterSaleScreen({ history }) {
                                     <div key={l.product._id} id={`bill-line-${l.product._id}`}
                                         className={cn('px-4 py-2 transition-colors duration-700', flashId === l.product._id && 'bg-brand-50')}>
                                         <div className="flex items-start justify-between gap-2">
-                                            <p className="text-xs font-semibold text-slate-900">{l.product.name}</p>
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-semibold text-slate-900">{l.product.name}</p>
+                                                {l.product.is_combo && l.product.combo && (
+                                                    <p className="text-[11px] leading-snug text-slate-500">
+                                                        {l.product.combo.items.map((x) => `${x.qty} ${x.unit} ${x.name}`).join(' · ')}
+                                                    </p>
+                                                )}
+                                            </div>
                                             <p className="shrink-0 text-xs font-bold text-slate-900">
                                                 {formatINR(lineTotal(l))}
                                             </p>
@@ -547,57 +635,113 @@ function CounterSaleScreen({ history }) {
                                     </div>
                                 )
                             })}
-                        </div>
-                    )}
+                          </div>
+                            {/* Customer, discount and pay later scroll with the items, so the items never get squeezed. */}
+                            <div className="space-y-2 bg-slate-50/70 px-4 py-3">
+                        {/* Customer: only needed for pay later, otherwise optional. */}
+                        {payLater || showCustomer || customerName || customerPhone ? (
+                            <div>
+                                <p className="mb-1 flex items-center justify-between text-xs font-medium text-slate-600">
+                                    <span>Customer {payLater ? <span className="text-amber-700">(needed for pay later)</span> : <span className="font-normal text-slate-400">(optional)</span>}</span>
+                                    {!payLater && !customerName && !customerPhone && (
+                                        <button type="button" onClick={() => setShowCustomer(false)} className="text-slate-400 hover:text-slate-700">Hide</button>
+                                    )}
+                                </p>
+                                <CustomerPicker api={api} name={customerName} phone={customerPhone}
+                                    onName={setCustomerName} onPhone={setCustomerPhone} required={payLater} />
+                            </div>
+                        ) : null}
 
-                    <div className="mt-auto shrink-0 space-y-2 border-t border-slate-100 px-4 py-3">
-                        <div className="grid grid-cols-2 gap-2">
-                            <Input value={customerName} onChange={(e) => setCustomerName(e.target.value)}
-                                placeholder={payment === 'due' ? 'Customer name (required)' : 'Customer name'}
-                                aria-label="Customer name"
-                                className={cn('!h-8 text-xs', payment === 'due' && !customerName.trim() && '!border-amber-400')} />
-                            <Input type="tel" inputMode="tel" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)}
-                                placeholder={payment === 'due' ? 'Phone (required)' : 'Phone'}
-                                aria-label="Customer phone"
-                                className={cn('!h-8 text-xs', payment === 'due' && !customerPhone.trim() && '!border-amber-400')} />
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                            <div className="flex gap-1">
+                                {!(payLater || showCustomer || customerName || customerPhone) && (
+                                    <button type="button" onClick={() => setShowCustomer(true)}
+                                        className="inline-flex items-center gap-1 rounded-md px-2 py-1 font-medium text-brand-700 hover:bg-brand-50">
+                                        <UserPlus className="h-3.5 w-3.5" /> Add customer
+                                    </button>
+                                )}
+                                {!(showDiscount || discount) && (
+                                    <button type="button" onClick={() => setShowDiscount(true)}
+                                        className="inline-flex items-center gap-1 rounded-md px-2 py-1 font-medium text-brand-700 hover:bg-brand-50">
+                                        <Tag className="h-3.5 w-3.5" /> Add discount
+                                    </button>
+                                )}
+                            </div>
+                            {(showDiscount || discount) && (
+                                <label className="ml-auto flex items-center gap-2 text-slate-600">
+                                    Discount ₹
+                                    <Input type="number" min="0" inputMode="decimal" value={discount} placeholder="0" autoFocus={showDiscount && !discount}
+                                        onFocus={(e) => e.target.select()}
+                                        onChange={(e) => setDiscount(e.target.value)} className="!h-8 !w-20 text-right text-xs" />
+                                </label>
+                            )}
                         </div>
 
-                        <div className="flex items-center justify-between gap-3 text-xs text-slate-600">
-                            <span>Subtotal <span className="font-semibold text-slate-900">{formatINR(subtotal)}</span></span>
-                            <label className="flex items-center gap-2">
-                                Discount
-                                <Input type="number" min="0" inputMode="decimal" value={discount} placeholder="0"
-                                    onFocus={(e) => e.target.select()}
-                                    onChange={(e) => setDiscount(e.target.value)} className="!h-8 !w-20 text-right text-xs" />
-                            </label>
-                        </div>
-
+                        {(discountValue > 0 || gstOnBill.tax > 0) && (
+                            <p className="flex justify-between text-xs text-slate-600"><span>Items</span><span className="font-semibold text-slate-900">{formatINR(subtotal)}</span></p>
+                        )}
+                        {discountValue > 0 && (
+                            <p className="flex justify-between text-xs text-slate-600"><span>Discount</span><span className="font-semibold text-emerald-700">−{formatINR(discountValue)}</span></p>
+                        )}
                         {gstOnBill.tax > 0 && (
                             <p className="flex justify-between text-xs text-slate-600">
                                 <span>{gstSettings.prices_include_gst ? 'Includes GST' : 'GST added'} (CGST + SGST)</span>
                                 <span className="font-semibold text-slate-900">{formatINR(gstOnBill.tax)}</span>
                             </p>
                         )}
+                        <button type="button" role="switch" onClick={() => setPayLater((v) => !v)} aria-checked={payLater}
+                            className={cn('flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm ring-1 ring-inset transition',
+                                payLater ? 'bg-amber-50 text-amber-900 ring-amber-300' : 'bg-white text-slate-700 ring-slate-200 hover:bg-slate-50')}>
+                            <span>
+                                <span className="block font-semibold">Customer pays later (udhaar)</span>
+                                <span className="block text-[11px] text-slate-500">{payLater ? 'What is not paid now goes in their khata.' : 'Turn on if they pay part or nothing today.'}</span>
+                            </span>
+                            <span className={cn('relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition', payLater ? 'bg-amber-500' : 'bg-slate-300')}>
+                                <span className={cn('inline-block h-4 w-4 rounded-full bg-white shadow transition', payLater ? 'translate-x-4' : 'translate-x-0.5')} />
+                            </span>
+                        </button>
+
+                        {payLater && (
+                            <div className="space-y-1 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                                <div className="flex items-center justify-between gap-2">
+                                    <label htmlFor="amountPaid">Paid now by {(PAYMENT_METHODS.find((m) => m.value === payment) || {}).label || 'cash'}</label>
+                                    <Input id="amountPaid" type="number" min="0" inputMode="decimal" value={amountPaid} placeholder="0"
+                                        onFocus={(e) => e.target.select()}
+                                        onChange={(e) => setAmountPaid(e.target.value)} className="!h-8 !w-24 text-right text-xs" />
+                                </div>
+                                <p className="flex justify-between font-semibold"><span>Goes in their khata</span><span>{formatINR(owedNow)}</span></p>
+                            </div>
+                        )}
+
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Fixed at the bottom: total, how they pay, cash and the Charge button. */}
+                    <div className="mt-auto shrink-0 space-y-2 border-t border-slate-200 bg-white px-4 py-3">
                         <div className="flex items-baseline justify-between rounded-lg bg-slate-900 px-3 py-2 text-white">
-                            <span className="text-xs font-medium text-slate-300">Total to pay</span>
-                            <span className="text-xl font-bold tracking-tight">{formatINR(total)}</span>
+                            <span className="text-sm font-medium text-slate-300">Total{discountValue > 0 ? ` (after ${formatINR(discountValue)} off)` : ''}</span>
+                            <span className="text-2xl font-bold tracking-tight">{formatINR(total)}</span>
                         </div>
 
-                        <div className="grid grid-cols-3 gap-1">
-                            {PAYMENT_METHODS.map((m) => (
-                                <button key={m.value} type="button" onClick={() => setPayment(m.value)}
-                                    className={cn('rounded-md py-1.5 text-xs font-semibold ring-1 ring-inset transition',
-                                        payment === m.value
-                                            ? (m.value === 'due' ? 'bg-amber-500 text-white ring-amber-500' : 'bg-brand-600 text-white ring-brand-600')
-                                            : 'bg-white text-slate-700 ring-slate-200 hover:bg-slate-50')}>
-                                    {m.label}
-                                </button>
-                            ))}
+                        <div className="grid grid-cols-3 gap-1.5">
+                            {PAYMENT_METHODS.map((m) => {
+                                const Icon = PAY_ICONS[m.value] || Banknote
+                                const on = payment === m.value
+                                return (
+                                    <button key={m.value} type="button" onClick={() => setPayment(m.value)} aria-pressed={on}
+                                        className={cn('flex h-10 items-center justify-center gap-1.5 rounded-lg text-sm font-semibold ring-1 ring-inset transition',
+                                            on ? 'bg-brand-600 text-white ring-brand-600' : 'bg-white text-slate-700 ring-slate-200 hover:bg-slate-50')}>
+                                        <Icon className="h-4 w-4" /> {m.label}
+                                    </button>
+                                )
+                            })}
                         </div>
 
-                        {payment === 'cash' && total > 0 && (
+                        {payment === 'cash' && !payLater && total > 0 && (
                             <div className="space-y-1.5">
                                 <div className="flex items-center gap-1">
+                                    <span className="mr-1 text-xs font-medium text-slate-600">Cash got</span>
                                     <QuickCash active={cashValue === total} onClick={() => setCashGiven(String(total))}>Exact</QuickCash>
                                     {quickCash.map((a) => (
                                         <QuickCash key={a} active={cashValue === a} onClick={() => setCashGiven(String(a))}>{formatINR(a)}</QuickCash>
@@ -608,13 +752,13 @@ function CounterSaleScreen({ history }) {
                                         className={cn('!h-8 min-w-0 flex-1 !px-2 text-right text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none', cashGiven === '' && cart.length > 0 && '!border-amber-400')} />
                                 </div>
                                 {change > 0 && (
-                                    <div className="flex items-baseline justify-between rounded-lg bg-emerald-50 px-3 py-1.5 text-emerald-800">
+                                    <div className="flex items-baseline justify-between rounded-lg bg-emerald-50 px-3 py-1 text-emerald-800">
                                         <span className="text-xs font-medium">Give change</span>
-                                        <span className="text-lg font-bold">{formatINR(change)}</span>
+                                        <span className="text-base font-bold">{formatINR(change)}</span>
                                     </div>
                                 )}
                                 {short > 0 && (
-                                    <div className="flex items-baseline justify-between rounded-lg bg-rose-50 px-3 py-1.5 text-rose-700">
+                                    <div className="flex items-baseline justify-between rounded-lg bg-rose-50 px-3 py-1 text-rose-700">
                                         <span className="text-xs font-medium">Still needed</span>
                                         <span className="text-base font-bold">{formatINR(short)}</span>
                                     </div>
@@ -622,22 +766,12 @@ function CounterSaleScreen({ history }) {
                             </div>
                         )}
 
-                        {payment === 'due' && (
-                            <div className="flex items-center justify-between gap-2 rounded-lg bg-amber-50 px-3 py-1.5 text-xs text-amber-800">
-                                <label htmlFor="amountPaid">Paid now <span className="text-xs">(the rest is owed)</span></label>
-                                <Input id="amountPaid" type="number" min="0" inputMode="decimal" value={amountPaid} placeholder="0"
-                                    onChange={(e) => setAmountPaid(e.target.value)} className="!h-8 !w-24 text-right text-xs" />
-                            </div>
-                        )}
-
                         {saleError && <Alert variant="danger">{saleError}</Alert>}
 
-                        <Button block size="lg" className="!h-12 text-base" disabled={Boolean(blocker) || saving} onClick={completeSale}>
-                            {saving ? 'Saving…' : past ? (cart.length ? `Record past sale · ${formatINR(total)}` : 'Record past sale') : cart.length ? `Charge ${formatINR(total)}` : 'Charge'}
+                        <Button block size="lg" className="!h-11 text-base" disabled={Boolean(blocker) || saving} onClick={completeSale}>
+                            {saving ? 'Saving…' : past ? (cart.length ? `Record past sale · ${formatINR(total)}` : 'Record past sale') : cart.length ? (payLater ? `Save bill · ${formatINR(owedNow)} owed` : `Charge ${formatINR(total)}`) : 'Charge'}
                         </Button>
-                        <p className={cn('text-center text-[11px]', blocker && cart.length ? 'font-medium text-rose-600' : 'text-slate-400')}>
-                            {blocker || 'Press F9 or Ctrl+Enter to charge.'}
-                        </p>
+                        {blocker && cart.length > 0 && <p className="text-center text-xs font-medium text-rose-600">{blocker}</p>}
                     </div>
                 </Card>
             </div>

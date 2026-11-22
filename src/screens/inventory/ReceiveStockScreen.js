@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Plus, Trash2, UserPlus, Paperclip, FileText, Search, ChevronRight, Camera, X, ExternalLink } from 'lucide-react'
+import { Plus, Trash2, UserPlus, Paperclip, FileText, Search, ChevronRight, Camera, X, ExternalLink, Printer } from 'lucide-react'
 import AdminLayout from '../../admin_components/AdminLayout'
 import { Alert, Badge, Button, Card, Field, Input, Modal, Select, Spinner, cn, formatINR } from '../../components/ui'
+import { DeliveryReceipt } from '../../inventory/Receipt'
 import { useAdminGuard, inventoryApi, errorText, formatDateTime, todayInShop } from '../../inventory/api'
 
 const emptyLine = () => ({ key: Math.random(), product: '', qty: '', unit_cost: '', line_total: '', by_total: false, batch_no: '', expiry_date: '' })
@@ -57,7 +58,8 @@ function ReceiveStockScreen({ history }) {
 
     const load = () => {
         Promise.all([api.get('products/'), api.get('suppliers/'), loadDeliveries()])
-            .then(([p, s]) => { setProducts(p); setSuppliers(s); setLoadError('') })
+            // Deliveries are of real products; a combo is made from them.
+            .then(([p, s]) => { setProducts(p.filter((x) => !x.is_combo)); setSuppliers(s); setLoadError('') })
             .catch((e) => setLoadError(errorText(e)))
             .finally(() => setLoading(false))
     }
@@ -95,7 +97,7 @@ function ReceiveStockScreen({ history }) {
         setSuccess('')
         const items = lines.filter((l) => l.product)
         if (items.length === 0) {
-            setError('Choose at least one item.')
+            setError('Choose at least one product.')
             return
         }
         if (payment === 'part' && !(Number(paidAmount) > 0)) {
@@ -116,7 +118,7 @@ function ReceiveStockScreen({ history }) {
         setSaving(true)
         api.postForm('purchases/', form)
             .then((res) => {
-                setSuccess(`Delivery #${res.id} saved: ${items.length} ${items.length === 1 ? 'item' : 'items'}, ${formatINR(res.total_cost)}${res.due > 0 ? `, ${formatINR(res.due)} still owed` : ', paid'}.`)
+                setSuccess(`Delivery #${res.id} saved: ${items.length} ${items.length === 1 ? 'product' : 'products'}, ${formatINR(res.total_cost)}${res.due > 0 ? `, ${formatINR(res.due)} still owed` : ', paid'}.`)
                 reset()
                 setSaving(false)
                 load()
@@ -155,14 +157,14 @@ function ReceiveStockScreen({ history }) {
 
                             <div className="space-y-3">
                                 <div className="hidden grid-cols-[1fr_7rem_7rem_7.5rem_7rem_8.5rem_2.5rem] gap-3 text-xs font-semibold uppercase tracking-wider text-slate-500 lg:grid">
-                                    <span>Item</span><span>Quantity / weight</span><span>Price per unit</span><span>Line total</span><span>Batch no.</span><span>Expiry date</span><span />
+                                    <span>Product</span><span>Quantity / weight</span><span>Price per unit</span><span>Line total</span><span>Batch no.</span><span>Expiry date</span><span />
                                 </div>
                                 {lines.map((l) => {
                                     const p = productById(l.product)
                                     return (
                                         <div key={l.key} className="grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-3 lg:grid-cols-[1fr_7rem_7rem_7.5rem_7rem_8.5rem_2.5rem] lg:gap-3 lg:bg-transparent lg:p-0">
-                                            <Select value={l.product} onChange={(e) => pickProduct(l.key, e.target.value)} aria-label="Item" className="col-span-2 lg:col-span-1">
-                                                <option value="">Choose an item</option>
+                                            <Select value={l.product} onChange={(e) => pickProduct(l.key, e.target.value)} aria-label="Product" className="col-span-2 lg:col-span-1">
+                                                <option value="">Choose a product</option>
                                                 {products.map((prod) => (
                                                     <option key={prod._id} value={prod._id}>{prod.name} ({prod.countInStock} {prod.unit} now)</option>
                                                 ))}
@@ -248,7 +250,7 @@ function ReceiveStockScreen({ history }) {
                             <div className="flex gap-2">
                                 <div className="relative">
                                     <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                                    <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Supplier, invoice, item or batch" className="!w-64 pl-9" aria-label="Search deliveries" />
+                                    <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Supplier, invoice, product or batch" className="!w-64 pl-9" aria-label="Search deliveries" />
                                 </div>
                                 <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="!w-36" aria-label="Payment status">
                                     <option value="">All</option>
@@ -343,7 +345,17 @@ function DeliveryModal({ api, id, onClose, onChanged }) {
     const [receiptUrl, setReceiptUrl] = useState(null)
     const [amount, setAmount] = useState('')
     const [busy, setBusy] = useState(false)
+    const [printing, setPrinting] = useState(null) // 'slip' | 'receipt'
     const fileRef = useRef(null)
+
+    // Mark what to print, let it render, then open the print dialog. What was printed stays
+    // in place until the next choice, since on phones print() returns before printing.
+    useEffect(() => {
+        if (!printing) return undefined
+        const t = setTimeout(() => window.print(), 50)
+        return () => clearTimeout(t)
+    }, [printing])
+    const print = (what) => (printing === what ? window.print() : setPrinting(what))
 
     useEffect(() => {
         api.get(`purchases/${id}/`).then(setD).catch((e) => setError(errorText(e)))
@@ -394,7 +406,7 @@ function DeliveryModal({ api, id, onClose, onChanged }) {
                     <div className="overflow-x-auto rounded-xl border border-slate-200">
                         <table className="w-full text-sm">
                             <thead className="bg-slate-50 text-left text-xs text-slate-500">
-                                <tr><th className="px-3 py-2 font-medium">Item</th><th className="px-3 py-2 font-medium">Batch</th><th className="px-3 py-2 text-right font-medium">Received</th><th className="px-3 py-2 text-right font-medium">Left</th><th className="px-3 py-2 text-right font-medium">Price</th><th className="px-3 py-2 font-medium">Expiry</th></tr>
+                                <tr><th className="px-3 py-2 font-medium">Product</th><th className="px-3 py-2 font-medium">Batch</th><th className="px-3 py-2 text-right font-medium">Received</th><th className="px-3 py-2 text-right font-medium">Left</th><th className="px-3 py-2 text-right font-medium">Price</th><th className="px-3 py-2 font-medium">Expiry</th></tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                                 {d.items.map((i, n) => (
@@ -455,6 +467,23 @@ function DeliveryModal({ api, id, onClose, onChanged }) {
 
                     {d.note && <p className="text-sm text-slate-600"><span className="font-medium">Note:</span> {d.note}</p>}
                     {error && <Alert variant="danger">{error}</Alert>}
+
+                    <div className="flex flex-wrap gap-2">
+                        <Button variant="secondary" onClick={() => print('slip')}><Printer className="h-4 w-4" /> Print delivery slip</Button>
+                        {d.receipt === 'image' && receiptUrl && (
+                            <Button variant="secondary" onClick={() => print('receipt')}><Printer className="h-4 w-4" /> Print supplier's receipt</Button>
+                        )}
+                        {d.receipt && d.receipt !== 'image' && receiptUrl && (
+                            <Button variant="secondary" href={receiptUrl} target="_blank" rel="noreferrer"><Printer className="h-4 w-4" /> Open PDF to print</Button>
+                        )}
+                    </div>
+                    {/* Only shown when printing. */}
+                    <div className="hidden print:block">
+                        {printing === 'slip' && <DeliveryReceipt delivery={d} />}
+                        {printing === 'receipt' && receiptUrl && (
+                            <div className="print-area print-full"><img src={receiptUrl} alt="" className="w-full object-contain" /></div>
+                        )}
+                    </div>
                     <p className="text-xs text-slate-400">Saved {formatDateTime(d.createdAt)}</p>
                 </div>
             )}

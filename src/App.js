@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from 'react'
-import { HashRouter as Router, Route, Switch, useLocation } from 'react-router-dom'
+import { HashRouter as Router, Link, Route, Switch, useLocation } from 'react-router-dom'
 import Header from './components/Header'
 import Footer from './components/Footer'
 import ChatAssistant from './components/ChatAssistant'
@@ -45,6 +45,17 @@ const ADMIN_PATHS = ['/admin', '/dashboard', '/brand']
 const AdminAreaGated = withAdminGate(AdminArea)
 
 
+// A shop address that doesn't exist, e.g. a mistyped or old link.
+function NotFound() {
+  return (
+    <div className="mx-auto max-w-xl px-4 py-16 text-center">
+      <h1 className="text-xl font-bold text-slate-900">Page not found</h1>
+      <p className="mt-2 text-sm text-slate-500">The link may be mistyped, or the page has moved.</p>
+      <Link to="/" className="mt-6 inline-flex h-10 items-center rounded-lg bg-brand-600 px-4 text-sm font-semibold text-white hover:bg-brand-700">Back to the shop</Link>
+    </div>
+  )
+}
+
 function App() {
   return (
     <Router>
@@ -60,6 +71,7 @@ function App() {
             <main className="flex-1 py-4 sm:py-8 md:py-10">
               <PageBoundary>
               <Suspense fallback={<Loader />}>
+              <Switch>
               <Route path='/' component={HomeScreen} exact />
               <Route path='/login' component={LoginScreen} />
               <Route path='/register' component={RegisterScreen} />
@@ -80,6 +92,8 @@ function App() {
               <Route path='/page/:slug' component={SitePageScreen} />
               <Route path='/categories' component={CategoryScreen} />
               <Route path='/stores' component={StoreScreen} />
+              <Route component={NotFound} />
+              </Switch>
               </Suspense>
               </PageBoundary>
             </main>
