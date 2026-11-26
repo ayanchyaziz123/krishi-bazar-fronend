@@ -2,9 +2,12 @@ import React, { useEffect, useMemo, useState } from 'react'
 import axios from 'axios'
 import { useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
-import { Plus, Pencil, Trash2, Search, ChevronLeft, ChevronRight, Package, Layers, ArrowUp, ArrowDown, ChevronsUpDown, Image as ImageIcon, Store, Globe } from 'lucide-react'
+import { Plus, Pencil, Trash2, Search, ChevronLeft, ChevronRight, Package, Layers, ArrowUp, ArrowDown, ChevronsUpDown, Image as ImageIcon, Store, Globe, MessageCircle, Copy, X } from 'lucide-react'
 import AdminLayout from '../admin_components/AdminLayout'
-import { Alert, Badge, Button, Card, EmptyState, Input, Modal, Select, Skeleton, StatusPill, cn, formatINR, toast } from '../components/ui'
+import { Alert, Badge, Button, Card, EmptyState, Input, Modal, Select, Skeleton, StatusPill, Textarea, cn, finalPrice, formatINR, toast } from '../components/ui'
+import { shopUrl } from '../components/shopSlug'
+import { activeBusinessInfo } from '../admin_components/roles'
+import { useStoreBrand } from '../components/storeBrand'
 import { useCategories } from '../components/categories'
 
 const errorText = (e) => (e.response && e.response.data && e.response.data.detail) || e.message
@@ -51,6 +54,23 @@ function ProductListScreen({ history, location }) {
     const [error, setError] = useState('')
     const [deleting, setDeleting] = useState(null)
     const [reload, setReload] = useState(0)
+    // Products picked to share on WhatsApp, kept while moving between pages and filters.
+    const [picked, setPicked] = useState({})
+    const [sharing, setSharing] = useState(false)
+    const pickedList = Object.values(picked)
+    const togglePick = (p) => setPicked((now) => {
+        const next = { ...now }
+        if (next[p._id]) delete next[p._id]
+        else next[p._id] = p
+        return next
+    })
+    const pagePicked = data ? data.products.filter((p) => picked[p._id]).length : 0
+    const pickPage = () => setPicked((now) => {
+        const next = { ...now }
+        const all = data.products.every((p) => next[p._id])
+        data.products.forEach((p) => { if (all) delete next[p._id]; else next[p._id] = p })
+        return next
+    })
 
     // Change one or more filters; any change other than the page goes back to page 1.
     const update = (changes) => {
@@ -186,8 +206,12 @@ function ProductListScreen({ history, location }) {
                         {/* Phones: one card per product */}
                         <ul className="divide-y divide-slate-100 md:hidden">
                             {data.products.map((p) => (
-                                <li key={p._id}>
-                                    <button type="button" onClick={() => edit(p)} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-slate-50">
+                                <li key={p._id} className={cn('flex items-center', picked[p._id] && 'bg-brand-50/60')}>
+                                    <label className="flex self-stretch items-center pl-4 pr-1">
+                                        <input type="checkbox" checked={Boolean(picked[p._id])} onChange={() => togglePick(p)} aria-label={`Pick ${p.name} to share`}
+                                            className="h-4 w-4 rounded border-slate-300 accent-brand-600" />
+                                    </label>
+                                    <button type="button" onClick={() => edit(p)} className="flex min-w-0 flex-1 items-center gap-3 py-3 pl-2 pr-4 text-left hover:bg-slate-50">
                                         <Thumb product={p} />
                                         <span className="min-w-0 flex-1">
                                             <span className="block truncate text-sm font-medium text-slate-900">{p.name}</span>
@@ -208,7 +232,12 @@ function ProductListScreen({ history, location }) {
                             <table className="w-full text-sm">
                                 <thead className="border-b border-slate-200 bg-slate-50/70 text-left text-xs font-semibold text-slate-500">
                                     <tr>
-                                        <SortHead asc="name" desc="name" className="pl-5">Product</SortHead>
+                                        <th className="w-10 py-2.5 pl-5">
+                                            <input type="checkbox" checked={pagePicked > 0 && pagePicked === data.products.length} onChange={pickPage}
+                                                ref={(el) => { if (el) el.indeterminate = pagePicked > 0 && pagePicked < data.products.length }}
+                                                aria-label="Pick every product on this page" title="Pick every product on this page" className="h-4 w-4 rounded border-slate-300 accent-brand-600" />
+                                        </th>
+                                        <SortHead asc="name" desc="name" className="pl-2">Product</SortHead>
                                         <th className="px-3 py-2.5 uppercase tracking-wider">Category</th>
                                         <SortHead asc="price_asc" desc="price_desc" className="text-right">Price</SortHead>
                                         <SortHead asc="stock_asc" desc="stock_desc" className="text-right">Stock</SortHead>
@@ -218,9 +247,13 @@ function ProductListScreen({ history, location }) {
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
                                     {data.products.map((p) => (
-                                        <tr key={p._id} className="group cursor-pointer transition hover:bg-slate-50"
-                                            onClick={(e) => { if (!e.target.closest('a, button')) edit(p) }}>
-                                            <td className="py-3 pl-5 pr-3">
+                                        <tr key={p._id} className={cn('group cursor-pointer transition hover:bg-slate-50', picked[p._id] && 'bg-brand-50/60')}
+                                            onClick={(e) => { if (!e.target.closest('a, button, label, input')) edit(p) }}>
+                                            <td className="py-3 pl-5">
+                                                <input type="checkbox" checked={Boolean(picked[p._id])} onChange={() => togglePick(p)} aria-label={`Pick ${p.name} to share`}
+                                                    className="h-4 w-4 rounded border-slate-300 accent-brand-600" />
+                                            </td>
+                                            <td className="py-3 pl-2 pr-3">
                                                 <div className="flex items-center gap-3">
                                                     <Thumb product={p} />
                                                     <div className="min-w-0">
@@ -288,11 +321,122 @@ function ProductListScreen({ history, location }) {
                 )}
             </Card>
 
+            {pickedList.length > 0 && (
+                <div className="sticky bottom-4 z-30 mx-auto mt-4 flex max-w-xl items-center gap-3 rounded-xl bg-slate-900 px-4 py-3 text-white shadow-lg">
+                    <span className="text-sm font-medium">{pickedList.length} picked</span>
+                    <button type="button" onClick={() => setPicked({})} className="text-sm text-slate-300 underline-offset-2 hover:text-white hover:underline">Clear</button>
+                    <button type="button" onClick={() => setSharing(true)}
+                        className="ml-auto inline-flex h-9 items-center gap-2 rounded-lg bg-[#25D366] px-4 text-sm font-semibold text-slate-900 hover:bg-[#20bd5a]">
+                        <MessageCircle className="h-4 w-4" /> Share on WhatsApp
+                    </button>
+                </div>
+            )}
+
+            {sharing && (
+                <ShareProducts products={pickedList} userInfo={userInfo} onRemove={togglePick}
+                    onClose={() => setSharing(false)} onSent={() => { setSharing(false); setPicked({}) }} />
+            )}
+
             {deleting && (
                 <DeleteProduct product={deleting} auth={auth} onClose={() => setDeleting(null)}
                     onDeleted={() => { toast.success(`${deleting.name} was deleted.`); setDeleting(null); setReload((n) => n + 1) }} />
             )}
         </AdminLayout>
+    )
+}
+
+// What a customer pays: the online price for products sold online (their link opens in the
+// shop), else the counter price. Either way less any offer.
+const sharePrice = (p) => {
+    const online = p.sell_online !== false
+    const base = Number(online ? p.price : (p.shop_price ?? p.price)) || 0
+    const offer = p.is_offer && p.offer_percentage > 0
+    return { now: offer ? finalPrice({ ...p, price: base }) : base, was: offer ? base : null, online }
+}
+
+const productMessage = (products, shopName, slug) => {
+    const lines = [shopName ? `*${shopName}*` : '', products.length === 1 ? 'Have a look at this:' : 'Have a look at these:', '']
+    products.forEach((p, i) => {
+        const { now, was, online } = sharePrice(p)
+        const unit = p.sold_by_weight ? `/${p.unit || 'kg'}` : ''
+        const pack = p.weight && !p.sold_by_weight ? ` (${p.weight})` : ''
+        lines.push(`${i + 1}. *${p.name.trim()}*${pack}`)
+        lines.push(`   ${formatINR(now)}${unit}${was ? ` ~${formatINR(was)}~ ${p.offer_percentage}% off` : ''}`)
+        if (online) lines.push(`   ${shopUrl(slug, `/product/${p._id}`)}`)
+        lines.push('')
+    })
+    if (products.some((p) => p.sell_online !== false)) lines.push(`Order online: ${shopUrl(slug)}`)
+    lines.push('Reply here to order.')
+    return lines.filter((l, i) => l || i > 0).join('\n')
+}
+
+// Write the WhatsApp message for the picked products, change it if wanted, then open WhatsApp
+// (to one customer's number, or to choose a chat or group there).
+function ShareProducts({ products, userInfo, onRemove, onClose, onSent }) {
+    const business = activeBusinessInfo(userInfo) || {}
+    // The name customers see on the website, else the business name.
+    const brand = useStoreBrand()
+    const shopName = (brand && brand.name) || business.name
+    const [text, setText] = useState(() => productMessage(products, shopName, business.slug))
+    const [phone, setPhone] = useState('')
+    const [edited, setEdited] = useState(false)
+    // Rewrite the message when a product is taken out, unless the user has changed it.
+    useEffect(() => {
+        if (!edited) setText(productMessage(products, shopName, business.slug))
+        if (products.length === 0) onClose()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [products.length])
+
+    const digits = phone.replace(/\D/g, '')
+    const number = digits.length === 10 ? `91${digits}` : digits
+    const phoneOk = digits === '' || (digits.length >= 10 && digits.length <= 13)
+    const offline = products.filter((p) => p.sell_online === false).length
+    const open = () => {
+        window.open(`https://wa.me/${number}?text=${encodeURIComponent(text)}`, '_blank', 'noopener')
+        onSent()
+    }
+    const copy = () => {
+        navigator.clipboard.writeText(text).then(() => toast.success('Message copied. Paste it in WhatsApp.'), () => toast.error('Could not copy. Select the text and copy it.'))
+    }
+
+    return (
+        <Modal show onClose={onClose} title="Share on WhatsApp">
+            <div className="space-y-4">
+                <div className="flex flex-wrap gap-1.5">
+                    {products.map((p) => (
+                        <span key={p._id} className="inline-flex max-w-full items-center gap-1 rounded-full bg-slate-100 py-1 pl-3 pr-1 text-xs font-medium text-slate-700">
+                            <span className="truncate">{p.name}</span>
+                            <button type="button" onClick={() => onRemove(p)} aria-label={`Take out ${p.name}`} className="rounded-full p-0.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700"><X className="h-3.5 w-3.5" /></button>
+                        </span>
+                    ))}
+                </div>
+                <div>
+                    <label htmlFor="share-text" className="mb-1.5 flex items-center justify-between text-sm font-medium text-slate-700">
+                        Message
+                        {edited && <button type="button" className="text-xs font-semibold text-brand-700 hover:underline" onClick={() => { setText(productMessage(products, shopName, business.slug)); setEdited(false) }}>Start again</button>}
+                    </label>
+                    <Textarea id="share-text" rows={10} value={text} onChange={(e) => { setText(e.target.value); setEdited(true) }} className="font-mono text-[13px] leading-relaxed" />
+                    <p className="mt-1.5 text-xs text-slate-500">
+                        Words between *stars* show in bold in WhatsApp.
+                        {offline > 0 && ` ${offline === 1 ? 'One product is' : `${offline} products are`} not in your online shop, so ${offline === 1 ? 'it has' : 'they have'} the counter price and no link.`}
+                    </p>
+                </div>
+                <div>
+                    <label htmlFor="share-phone" className="mb-1.5 block text-sm font-medium text-slate-700">Customer's WhatsApp number <span className="font-normal text-slate-500">(optional)</span></label>
+                    <Input id="share-phone" type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="98765 43210" />
+                    <p className={cn('mt-1.5 text-xs', phoneOk ? 'text-slate-500' : 'text-rose-600')}>
+                        {phoneOk ? 'Leave it empty to pick a chat or group in WhatsApp.' : 'Enter a 10-digit mobile number, or leave it empty.'}
+                    </p>
+                </div>
+                <div className="flex flex-col-reverse gap-2 sm:flex-row">
+                    <Button variant="secondary" onClick={copy}><Copy className="h-4 w-4" /> Copy message</Button>
+                    <button type="button" onClick={open} disabled={!phoneOk || !text.trim()}
+                        className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#25D366] sm:flex-1 px-4 text-sm font-semibold text-slate-900 hover:bg-[#20bd5a] disabled:opacity-50">
+                        <MessageCircle className="h-4 w-4" /> Open WhatsApp
+                    </button>
+                </div>
+            </div>
+        </Modal>
     )
 }
 
